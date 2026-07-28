@@ -173,10 +173,8 @@ public class JCListener implements Listener {
 	}
 
 	@EventHandler(priority = EventPriority.NORMAL)
-	public void onEntityExplode(EntityExplodeEvent event){
-		if (IceWall.checkExplosions(event.getLocation(), event.getEntity())) {
-			event.blockList().clear();
-		}
+	public void onEntityExplode(EntityExplodeEvent event) {
+		IceWall.handleExplosion(event.blockList());
 	}
 
 	@EventHandler(priority = EventPriority.NORMAL)

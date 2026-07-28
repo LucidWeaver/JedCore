@@ -904,17 +904,15 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Water.IceWall.Width", 6);
 		config.addDefault("Abilities.Water.IceWall.MaxHeight", 5);
 		config.addDefault("Abilities.Water.IceWall.MinHeight", 3);
-		config.addDefault("Abilities.Water.IceWall.MaxWallHealth", 12);
-		config.addDefault("Abilities.Water.IceWall.MinWallHealth", 8);
+		config.addDefault("Abilities.Water.IceWall.WallHealth", 10);
 		config.addDefault("Abilities.Water.IceWall.Range", 8);
 		config.addDefault("Abilities.Water.IceWall.Damage", 4.0);
 		config.addDefault("Abilities.Water.IceWall.DamageRadius", 2.5);
-		config.addDefault("Abilities.Water.IceWall.CanBreak", true);
 		config.addDefault("Abilities.Water.IceWall.Stackable", false);
 		config.addDefault("Abilities.Water.IceWall.CanSourceWall", false);
 		config.addDefault("Abilities.Water.IceWall.LifeTime.Enabled", false);
 		config.addDefault("Abilities.Water.IceWall.LifeTime.Duration", 10000);
-		config.addDefault("Abilities.Water.IceWall.WallDamage", true);
+		config.addDefault("Abilities.Water.IceWall.WallDamage.Enabled", true);
 		config.addDefault("Abilities.Water.IceWall.WallDamage.Torrent", 5);
 		config.addDefault("Abilities.Water.IceWall.WallDamage.TorrentFreeze", 9);
 		config.addDefault("Abilities.Water.IceWall.WallDamage.IceBlast", 8);
@@ -924,6 +922,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Water.IceWall.WallDamage.Combustion", 12);
 		config.addDefault("Abilities.Water.IceWall.WallDamage.EarthSmash", 8);
 		config.addDefault("Abilities.Water.IceWall.WallDamage.AirBlast", 2);
+		config.addDefault("Abilities.Water.IceWall.WallDamage.Explosion", 12);
 		
 		config.addDefault("Abilities.Water.WakeFishing.Enabled", true);
 		config.addDefault("Abilities.Water.WakeFishing.Description", "With this ability bound, hold Sneak (Default: Shift) at a water block and "
