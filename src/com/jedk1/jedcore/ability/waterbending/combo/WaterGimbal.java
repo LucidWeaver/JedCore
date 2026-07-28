@@ -3,19 +3,26 @@ package com.jedk1.jedcore.ability.waterbending.combo;
 import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.ability.waterbending.WaterBlast;
+import com.jedk1.jedcore.collision.AABB;
+import com.jedk1.jedcore.collision.CollisionDetector;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
-import com.jedk1.jedcore.util.CollisionInitializer;
 import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.ComboAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.ElementalAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager.AbilityInformation;
 import com.projectkorra.projectkorra.ability.util.ComboUtil;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.attribute.AttributeCache;
+import com.projectkorra.projectkorra.command.Commands;
+import com.projectkorra.projectkorra.event.AbilityRecalculateAttributeEvent;
+import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.BlockSource;
 import com.projectkorra.projectkorra.util.ClickType;
+import com.projectkorra.projectkorra.util.DamageHandler;
 import com.projectkorra.projectkorra.util.TempBlock;
 import com.projectkorra.projectkorra.waterbending.Torrent;
 import com.projectkorra.projectkorra.waterbending.WaterManipulation;
@@ -24,18 +31,27 @@ import com.projectkorra.projectkorra.waterbending.plant.PlantRegrowth;
 import com.projectkorra.projectkorra.waterbending.util.WaterReturn;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 
 public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbility {
 
@@ -72,12 +88,48 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 	private Location origin1;
 	private Location origin2;
 	private boolean usingBottle;
-	
+
 	private final Random rand = new Random();
 
-	static {
-		CollisionInitializer.abilityMap.put("WaterGimbal", "");
-	}
+	private static final String SPIRAL_PATH = "Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.";
+	private static final String SPIRAL_RANGE_ATTRIBUTE = "Spiral" + Attribute.RANGE;
+	private static final String SPIRAL_DAMAGE_ATTRIBUTE = "Spiral" + Attribute.DAMAGE;
+	private static final String SPIRAL_SPEED_ATTRIBUTE = "Spiral" + Attribute.SPEED;
+	private static final String SPIRAL_PUSH_DISTANCE_ATTRIBUTE = "SpiralPushDistance";
+	private static final int MAX_SAMPLE_LAYERS_PER_TICK = 32;
+	private static final double SOUND_SPACING = 7.0;
+	private static final double MIN_HIT_DISTANCE = 3.0;
+	private static final int START_CLEARANCE = 4;
+	private static final double NOT_PUSHING = -1.0;
+
+	private static BlockData sourceWater;
+
+	private boolean firing;
+	private Vector spiralCenter;
+	private Frame spiralFrame;
+	private Plan spiralPlan;
+	private Location spiralLocation;
+	@Attribute(SPIRAL_RANGE_ATTRIBUTE)
+	private double spiralRange;
+	@Attribute(SPIRAL_DAMAGE_ATTRIBUTE)
+	private double spiralDamage;
+	@Attribute(SPIRAL_SPEED_ATTRIBUTE)
+	private double spiralSpeed;
+	private long trailRevertTime;
+	private double sampleSpacing;
+	private boolean pushEnabled;
+	@Attribute(Attribute.KNOCKBACK)
+	private double pushStrength;
+	private double pushLift;
+	@Attribute(SPIRAL_PUSH_DISTANCE_ATTRIBUTE)
+	private double pushDistance;
+	private double axialDistance;
+	private double nextSoundDistance;
+	private double pushEndDistance = NOT_PUSHING;
+	private int nextSlice;
+	private boolean spiralSpent;
+	private final Set<UUID> damaged = new HashSet<>();
+	private final List<LivingEntity> carried = new ArrayList<>();
 
 	public WaterGimbal(Player player) {
 		super(player);
@@ -121,6 +173,11 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 		abilityCollisionRadius = config.getDouble("Abilities.Water.WaterCombo.WaterGimbal.AbilityCollisionRadius");
 		entityCollisionRadius = config.getDouble("Abilities.Water.WaterCombo.WaterGimbal.EntityCollisionRadius");
 		requireAdjacentSources = config.getBoolean("Abilities.Water.WaterCombo.WaterGimbal.RequireMultipleAdjacentSources", false);
+		spiralRange = config.getDouble(SPIRAL_PATH + "Range");
+		spiralDamage = config.getDouble(SPIRAL_PATH + "Damage");
+		spiralSpeed = config.getDouble(SPIRAL_PATH + "Speed");
+		pushStrength = config.getDouble(SPIRAL_PATH + "Push.Strength");
+		pushDistance = config.getDouble(SPIRAL_PATH + "Push.Distance");
 		
 		applyModifiers();
 	}
@@ -129,12 +186,24 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 		cooldown -= ((long) getNightFactor(cooldown) - cooldown);
 		range = getNightFactor(range);
 		damage = getNightFactor(damage);
+		spiralRange = getNightFactor(spiralRange);
+		spiralDamage = getNightFactor(spiralDamage);
 	}
 
 	@Override
 	public void progress() {
-		if (player == null || player.isDead() || !player.isOnline() || !player.isSneaking()) {
+		if (player == null || player.isDead() || !player.isOnline()) {
 			remove();
+			return;
+		}
+		if (firing) {
+			progressSpiral();
+			return;
+		}
+		if (!player.isSneaking()) {
+			if (!startSpiral()) {
+				remove();
+			}
 			return;
 		}
 		if (!bPlayer.canBendIgnoreBinds(this) || !bPlayer.canBendIgnoreCooldowns(getAbility("WaterManipulation"))) {
@@ -249,6 +318,9 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 	}
 
 	public void prepareBlast() {
+		if (firing) {
+			return;
+		}
 		if (leftVisible) {
 			leftVisible = false;
 			return;
@@ -344,6 +416,217 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 		}
 	}
 
+	private boolean startSpiral() {
+		ConfigurationSection config = JedCoreConfig.getConfig(player);
+
+		if (!config.getBoolean(SPIRAL_PATH + "Enabled")) {
+			return false;
+		}
+		if (initializing || !leftVisible || !rightVisible || leftConsumed || rightConsumed || origin1 == null
+				|| origin2 == null) {
+			return false;
+		}
+
+		Location first = origin1.clone().add(0.5, 0.5, 0.5);
+		Location second = origin2.clone().add(0.5, 0.5, 0.5);
+		if (first.getWorld() != second.getWorld()) {
+			return false;
+		}
+
+		Location start = clearedStart(new Location(first.getWorld(), (first.getX() + second.getX()) / 2.0,
+				(first.getY() + second.getY()) / 2.0, (first.getZ() + second.getZ()) / 2.0));
+		if (start == null) {
+			return false;
+		}
+
+		if (spiralRange <= 0.0 || spiralSpeed <= 0.0) {
+			return false;
+		}
+
+		Location target = GeneralMethods.getTargetedLocation(player, spiralRange, Material.WATER);
+		Vector direction = target == null || target.getWorld() != start.getWorld()
+				? player.getEyeLocation().getDirection()
+				: target.toVector().subtract(start.toVector());
+		if (!Frame.isFiniteNonZero(direction)) {
+			direction = player.getEyeLocation().getDirection();
+		}
+
+		spiralFrame = Frame.of(direction, first.toVector().subtract(second.toVector()));
+		spiralCenter = start.toVector();
+		spiralPlan = Plan.create(spiralCenter, spiralFrame, spiralRange);
+		if (spiralPlan == null) {
+			JedCore.logDebug("WaterGimbal spiral geometry could not be solved.");
+			return false;
+		}
+
+		trailRevertTime = config.getLong(SPIRAL_PATH + "Trail.RevertTime");
+		sampleSpacing = Math.min(1.0, Math.max(0.05, config.getDouble(SPIRAL_PATH + "Collision.SampleSpacing")));
+		pushEnabled = config.getBoolean(SPIRAL_PATH + "Push.Enabled");
+		pushLift = config.getDouble(SPIRAL_PATH + "Push.Lift");
+
+		spiralLocation = start;
+		firing = true;
+		return true;
+	}
+
+	private void progressSpiral() {
+		if (player.getWorld() != spiralLocation.getWorld()) {
+			remove();
+			return;
+		}
+
+		double travel = Math.min(spiralSpeed, spiralRange - axialDistance);
+		if (!Double.isFinite(travel) || travel <= 0.0) {
+			remove();
+			return;
+		}
+
+		int layers = Math.min(MAX_SAMPLE_LAYERS_PER_TICK, Math.max(1, (int) Math.ceil(travel / sampleSpacing)));
+		double step = travel / layers;
+
+		for (int layer = 0; layer < layers; layer++) {
+			axialDistance = Math.min(spiralRange, axialDistance + step);
+
+			if (!centerlineIsClear(axialDistance)) {
+				remove();
+				return;
+			}
+
+			World world = spiralLocation.getWorld();
+			renderSlices(world);
+			spiralLocation = spiralPoint(axialDistance, 1.0).toLocation(world);
+
+			if (axialDistance >= nextSoundDistance) {
+				playWaterbendingSound(spiralLocation);
+				nextSoundDistance = axialDistance + SOUND_SPACING;
+			}
+			if (axialDistance >= MIN_HIT_DISTANCE) {
+				hitAt(spiralLocation);
+				hitAt(spiralPoint(axialDistance, -1.0).toLocation(world));
+			}
+			if (spiralSpent || (pushEndDistance != NOT_PUSHING && axialDistance >= pushEndDistance)) {
+				remove();
+				return;
+			}
+		}
+
+		dragCarried();
+
+		if (axialDistance >= spiralRange) {
+			remove();
+		}
+	}
+
+	private void renderSlices(World world) {
+		while (nextSlice < spiralPlan.slices.size()) {
+			Slice slice = spiralPlan.slices.get(nextSlice);
+
+			if (slice.entryDistance > axialDistance + 1.0E-9) {
+				break;
+			}
+
+			placeTrail(world.getBlockAt(slice.positive.x, slice.positive.y, slice.positive.z));
+			placeTrail(world.getBlockAt(slice.negative.x, slice.negative.y, slice.negative.z));
+			nextSlice++;
+		}
+	}
+
+	private void placeTrail(Block block) {
+		if (!GeneralMethods.isSolid(block) && isTransparent(block)
+				&& !RegionProtection.isRegionProtected(this, block.getLocation())) {
+			new TempBlock(block, sourceWater(), trailRevertTime, this);
+		}
+	}
+
+	private void hitAt(Location location) {
+		AABB collider = AABB.BlockBounds.at(location).scale(entityCollisionRadius * 2.0);
+
+		CollisionDetector.checkEntityCollisions(player, collider, (entity) -> {
+			LivingEntity target = (LivingEntity) entity;
+
+			if (isProtected(target) || !damaged.add(target.getUniqueId())) {
+				return false;
+			}
+
+			DamageHandler.damageEntity(target, spiralDamage, this);
+
+			if (!pushEnabled) {
+				spiralSpent = true;
+				return false;
+			}
+
+			carried.add(target);
+
+			if (pushEndDistance == NOT_PUSHING) {
+				pushEndDistance = axialDistance + pushDistance;
+			}
+			return false;
+		});
+	}
+
+	private void dragCarried() {
+		if (carried.isEmpty()) {
+			return;
+		}
+
+		Vector push = spiralFrame.axis.clone().multiply(pushStrength).add(new Vector(0.0, pushLift, 0.0));
+		Iterator<LivingEntity> iterator = carried.iterator();
+
+		while (iterator.hasNext()) {
+			LivingEntity entity = iterator.next();
+
+			if (!entity.isValid() || entity.isDead() || isProtected(entity)) {
+				iterator.remove();
+				continue;
+			}
+			GeneralMethods.setVelocity(this, entity, push.clone());
+		}
+	}
+
+	private boolean isProtected(LivingEntity entity) {
+		return RegionProtection.isRegionProtected(this, entity.getLocation())
+				|| (entity instanceof Player && Commands.invincible.contains(entity.getName()));
+	}
+
+	private boolean centerlineIsClear(double distance) {
+		Location axisPoint = spiralCenter.clone().add(spiralFrame.axis.clone().multiply(distance))
+				.toLocation(spiralLocation.getWorld());
+
+		if (RegionProtection.isRegionProtected(this, axisPoint)) {
+			return false;
+		}
+
+		Block block = axisPoint.getBlock();
+		return !GeneralMethods.isSolid(block) || !GeneralMethods.isSolid(block.getRelative(BlockFace.UP));
+	}
+
+	private Location clearedStart(Location start) {
+		for (int up = 0; up <= START_CLEARANCE; up++) {
+			Location candidate = start.clone().add(0.0, up, 0.0);
+			Block block = candidate.getBlock();
+
+			if (!GeneralMethods.isSolid(block) && isTransparent(block)) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private Vector spiralPoint(double distance, double strandSign) {
+		double angle = Math.PI * 2.0 * distance / Plan.CYCLE_LENGTH;
+		Vector orbit = spiralFrame.radial.clone().multiply(Math.cos(angle))
+				.add(spiralFrame.binormal.clone().multiply(Math.sin(angle))).multiply(Plan.RADIUS * strandSign);
+
+		return spiralCenter.clone().add(spiralFrame.axis.clone().multiply(distance)).add(orbit);
+	}
+
+	private static BlockData sourceWater() {
+		if (sourceWater == null) {
+			sourceWater = Material.WATER.createBlockData(bd -> ((Levelled) bd).setLevel(0));
+		}
+		return sourceWater;
+	}
+
 	private void rotateAroundAxisX(Vector v, double angle) {
 		double cos = Math.cos(angle);
 		double sin = Math.sin(angle);
@@ -386,7 +669,24 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 
 	@Override
 	public Location getLocation() {
-		return null;
+		return spiralLocation;
+	}
+
+	@Override
+	public List<Location> getLocations() {
+		if (!firing || spiralLocation == null || spiralFrame == null || spiralCenter == null) {
+			return Collections.emptyList();
+		}
+
+		List<Location> locations = new ArrayList<>(2);
+		locations.add(spiralLocation);
+		locations.add(spiralPoint(axialDistance, -1.0).toLocation(spiralLocation.getWorld()));
+		return locations;
+	}
+
+	@Override
+	public double getCollisionRadius() {
+		return abilityCollisionRadius;
 	}
 
 	@Override
@@ -646,5 +946,411 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 	public boolean isEnabled() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		return config.getBoolean("Abilities.Water.WaterCombo.WaterGimbal.Enabled");
+	}
+
+	public static void applyAvatarStateModifier(AbilityRecalculateAttributeEvent event) {
+		WaterGimbal ability = (WaterGimbal) event.getAbility();
+
+		if (ability.bPlayer == null || !ability.bPlayer.isAvatarState()) {
+			return;
+		}
+
+		String source = getInheritedAttribute(event.getAttribute());
+		if (source == null) {
+			return;
+		}
+
+		Map<String, AttributeCache> attributes = CoreAbility.getAttributeCache(ability);
+		AttributeCache target = attributes.get(event.getAttribute());
+		AttributeCache inherited = attributes.get(source);
+
+		if (target == null || inherited == null || target.getAvatarStateModifier().isPresent()) {
+			return;
+		}
+
+		if (inherited.getAvatarStateModifier().isPresent()) {
+			event.addModification(inherited.getAvatarStateModifier().get());
+		}
+	}
+
+	private static String getInheritedAttribute(String attribute) {
+		if (attribute.equals(SPIRAL_DAMAGE_ATTRIBUTE)) {
+			return Attribute.DAMAGE;
+		}
+		if (attribute.equals(SPIRAL_RANGE_ATTRIBUTE) || attribute.equals(SPIRAL_PUSH_DISTANCE_ATTRIBUTE)) {
+			return Attribute.RANGE;
+		}
+		if (attribute.equals(SPIRAL_SPEED_ATTRIBUTE)) {
+			return Attribute.SPEED;
+		}
+		return null;
+	}
+
+	private static class Frame {
+		private static final double EPSILON_SQUARED = 1.0E-12;
+
+		private final Vector axis;
+		private final Vector radial;
+		private final Vector binormal;
+
+		private Frame(Vector axis, Vector radial, Vector binormal) {
+			this.axis = axis;
+			this.radial = radial;
+			this.binormal = binormal;
+		}
+
+		private static Frame of(Vector direction, Vector preferredRadial) {
+			Vector axis = normalized(direction);
+			Vector radial = preferredRadial.clone();
+			radial.subtract(axis.clone().multiply(radial.dot(axis)));
+
+			if (!isFiniteNonZero(radial)) {
+				Vector fallback = Math.abs(axis.getY()) < 0.9 ? new Vector(0.0, 1.0, 0.0) : new Vector(1.0, 0.0, 0.0);
+				radial = fallback.subtract(axis.clone().multiply(fallback.dot(axis)));
+			}
+			radial = normalized(radial);
+
+			return new Frame(axis, radial, normalized(axis.clone().crossProduct(radial)));
+		}
+
+		private static Vector normalized(Vector value) {
+			if (!isFiniteNonZero(value)) {
+				throw new IllegalArgumentException("Spiral frame needs finite non-zero vectors.");
+			}
+			return value.clone().normalize();
+		}
+
+		private static boolean isFiniteNonZero(Vector vector) {
+			return vector != null && Double.isFinite(vector.getX()) && Double.isFinite(vector.getY())
+					&& Double.isFinite(vector.getZ()) && vector.lengthSquared() > EPSILON_SQUARED;
+		}
+	}
+
+	private static class Plan {
+		private static final double RADIUS = 1.0;
+		private static final double CYCLE_LENGTH = 14.0;
+		private static final int[][] GRID_RING = {{1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}, {1, 0}};
+		private static final int[] GRID_SECTION_THICKNESS = {1, 2, 3, 1, 1, 2, 3, 1};
+		private static final double RAY_START_EPSILON = 1.0E-7;
+		private static final double BOUNDARY_EPSILON = 1.0E-9;
+		private static final int MAX_SEARCH_STATES = 100_000;
+
+		private final List<Slice> slices;
+
+		private Plan(List<Slice> slices) {
+			this.slices = Collections.unmodifiableList(slices);
+		}
+
+		private static Plan create(Vector center, Frame frame, double range) {
+			List<CenterCell> centerline = traceCenterline(center, frame.axis, range);
+			List<Section> sections = sections(centerline, frame);
+			Offset[] choices = new Offset[sections.size()];
+
+			if (!new Search(sections, choices).solve(0, null)) {
+				return null;
+			}
+
+			List<Slice> slices = new ArrayList<>(centerline.size());
+			for (int i = 0; i < sections.size(); i++) {
+				for (CenterCell centerCell : sections.get(i).centers) {
+					slices.add(new Slice(centerCell.entryDistance, centerCell.cell, choices[i]));
+				}
+			}
+			return new Plan(slices);
+		}
+
+		private static List<CenterCell> traceCenterline(Vector origin, Vector axis, double range) {
+			Vector start = origin.clone().add(axis.clone().multiply(RAY_START_EPSILON));
+			int x = (int) Math.floor(start.getX());
+			int y = (int) Math.floor(start.getY());
+			int z = (int) Math.floor(start.getZ());
+			int stepX = step(axis.getX());
+			int stepY = step(axis.getY());
+			int stepZ = step(axis.getZ());
+			double deltaX = delta(axis.getX());
+			double deltaY = delta(axis.getY());
+			double deltaZ = delta(axis.getZ());
+			double nextX = nextBoundaryDistance(origin.getX(), axis.getX(), x);
+			double nextY = nextBoundaryDistance(origin.getY(), axis.getY(), y);
+			double nextZ = nextBoundaryDistance(origin.getZ(), axis.getZ(), z);
+
+			List<CenterCell> cells = new ArrayList<>();
+			cells.add(new CenterCell(0.0, new Cell(x, y, z)));
+
+			while (true) {
+				double next = Math.min(nextX, Math.min(nextY, nextZ));
+
+				if (!Double.isFinite(next) || next > range + BOUNDARY_EPSILON) {
+					break;
+				}
+				if (Math.abs(nextX - next) <= BOUNDARY_EPSILON) {
+					x += stepX;
+					nextX += deltaX;
+				}
+				if (Math.abs(nextY - next) <= BOUNDARY_EPSILON) {
+					y += stepY;
+					nextY += deltaY;
+				}
+				if (Math.abs(nextZ - next) <= BOUNDARY_EPSILON) {
+					z += stepZ;
+					nextZ += deltaZ;
+				}
+				cells.add(new CenterCell(Math.max(0.0, next), new Cell(x, y, z)));
+			}
+			return cells;
+		}
+
+		private static List<Section> sections(List<CenterCell> centerline, Frame frame) {
+			List<Section> sections = new ArrayList<>();
+			int start = 0;
+			int sectionIndex = 0;
+			double sectionEnd = 0.0;
+
+			while (start < centerline.size()) {
+				sectionEnd += GRID_SECTION_THICKNESS[Math.floorMod(sectionIndex, GRID_SECTION_THICKNESS.length)];
+				int end = start;
+
+				while (end < centerline.size() && centerline.get(end).entryDistance < sectionEnd - BOUNDARY_EPSILON) {
+					end++;
+				}
+				if (end == start) {
+					end = start + 1;
+					sectionEnd = centerline.get(start).entryDistance;
+				}
+
+				List<CenterCell> centers = new ArrayList<>(centerline.subList(start, end));
+				sections.add(new Section(centers, candidates(centers, gridTarget(frame, sectionIndex), frame.axis)));
+				start = end;
+				sectionIndex++;
+			}
+			return sections;
+		}
+
+		private static List<Option> candidates(List<CenterCell> centers, Vector target, Vector axis) {
+			List<Option> candidates = new ArrayList<>();
+
+			for (int x = -1; x <= 1; x++) {
+				for (int y = -1; y <= 1; y++) {
+					for (int z = -1; z <= 1; z++) {
+						if (x == 0 && y == 0 && z == 0) {
+							continue;
+						}
+						Offset offset = new Offset(x, y, z);
+						Option option = Option.create(centers, offset, score(offset, target),
+								axialPenalty(offset, axis));
+
+						if (option != null) {
+							candidates.add(option);
+						}
+					}
+				}
+			}
+
+			candidates.sort(Comparator.comparingDouble((Option option) -> option.score)
+					.thenComparingDouble(option -> option.axialPenalty)
+					.thenComparingInt(option -> option.offset.x)
+					.thenComparingInt(option -> option.offset.y)
+					.thenComparingInt(option -> option.offset.z));
+			return candidates;
+		}
+
+		private static double score(Offset offset, Vector target) {
+			double x = offset.x - target.getX();
+			double y = offset.y - target.getY();
+			double z = offset.z - target.getZ();
+			return x * x + y * y + z * z;
+		}
+
+		private static double axialPenalty(Offset offset, Vector axis) {
+			double length = Math.sqrt(offset.x * offset.x + offset.y * offset.y + offset.z * offset.z);
+			return Math.abs((offset.x * axis.getX() + offset.y * axis.getY() + offset.z * axis.getZ()) / length);
+		}
+
+		private static int step(double component) {
+			return component > 0.0 ? 1 : component < 0.0 ? -1 : 0;
+		}
+
+		private static double delta(double component) {
+			return component == 0.0 ? Double.POSITIVE_INFINITY : 1.0 / Math.abs(component);
+		}
+
+		private static double nextBoundaryDistance(double origin, double component, int cell) {
+			if (component > 0.0) {
+				return (cell + 1.0 - origin) / component;
+			}
+			if (component < 0.0) {
+				return (origin - cell) / -component;
+			}
+			return Double.POSITIVE_INFINITY;
+		}
+
+		private static Vector gridTarget(Frame frame, int ringIndex) {
+			int[] local = GRID_RING[Math.floorMod(ringIndex, GRID_RING.length)];
+			return frame.radial.clone().multiply(local[0]).add(frame.binormal.clone().multiply(local[1]));
+		}
+
+		private static boolean touches(List<Cell> first, List<Cell> second) {
+			for (Cell firstCell : first) {
+				for (Cell secondCell : second) {
+					int gap = Math.max(Math.abs(firstCell.x - secondCell.x),
+							Math.max(Math.abs(firstCell.y - secondCell.y), Math.abs(firstCell.z - secondCell.z)));
+
+					if (gap <= 1) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		private static void removeLast(List<Cell> cells, int count) {
+			for (int i = 0; i < count; i++) {
+				cells.remove(cells.size() - 1);
+			}
+		}
+	}
+
+	private static class Slice {
+		private final double entryDistance;
+		private final Cell positive;
+		private final Cell negative;
+
+		private Slice(double entryDistance, Cell center, Offset offset) {
+			this.entryDistance = entryDistance;
+			this.positive = center.offset(offset);
+			this.negative = center.offset(offset.negative());
+		}
+	}
+
+	private static class Cell {
+		private final int x;
+		private final int y;
+		private final int z;
+
+		private Cell(int x, int y, int z) {
+			this.x = x;
+			this.y = y;
+			this.z = z;
+		}
+
+		private Cell offset(Offset offset) {
+			return new Cell(x + offset.x, y + offset.y, z + offset.z);
+		}
+	}
+
+	private static class Offset {
+		private final int x;
+		private final int y;
+		private final int z;
+
+		private Offset(int x, int y, int z) {
+			this.x = x;
+			this.y = y;
+			this.z = z;
+		}
+
+		private Offset negative() {
+			return new Offset(-x, -y, -z);
+		}
+
+		private boolean isNeighbor(Offset other) {
+			int movement = Math.max(Math.abs(x - other.x), Math.max(Math.abs(y - other.y), Math.abs(z - other.z)));
+			return movement > 0 && movement <= 1;
+		}
+	}
+
+	private static class CenterCell {
+		private final double entryDistance;
+		private final Cell cell;
+
+		private CenterCell(double entryDistance, Cell cell) {
+			this.entryDistance = entryDistance;
+			this.cell = cell;
+		}
+	}
+
+	private static class Section {
+		private final List<CenterCell> centers;
+		private final List<Option> options;
+
+		private Section(List<CenterCell> centers, List<Option> options) {
+			this.centers = centers;
+			this.options = options;
+		}
+	}
+
+	private static class Option {
+		private final Offset offset;
+		private final List<Cell> positive;
+		private final List<Cell> negative;
+		private final double score;
+		private final double axialPenalty;
+
+		private Option(Offset offset, List<Cell> positive, List<Cell> negative, double score, double axialPenalty) {
+			this.offset = offset;
+			this.positive = positive;
+			this.negative = negative;
+			this.score = score;
+			this.axialPenalty = axialPenalty;
+		}
+
+		private static Option create(List<CenterCell> centers, Offset offset, double score, double axialPenalty) {
+			List<Cell> positive = new ArrayList<>(centers.size());
+			List<Cell> negative = new ArrayList<>(centers.size());
+
+			for (CenterCell center : centers) {
+				positive.add(center.cell.offset(offset));
+				negative.add(center.cell.offset(offset.negative()));
+			}
+
+			if (Plan.touches(positive, negative)) {
+				return null;
+			}
+			return new Option(offset, positive, negative, score, axialPenalty);
+		}
+	}
+
+	private static class Search {
+		private final List<Section> sections;
+		private final Offset[] choices;
+		private final List<Cell> positiveCells = new ArrayList<>();
+		private final List<Cell> negativeCells = new ArrayList<>();
+		private int states;
+
+		private Search(List<Section> sections, Offset[] choices) {
+			this.sections = sections;
+			this.choices = choices;
+		}
+
+		private boolean solve(int sectionIndex, Offset previous) {
+			if (++states > Plan.MAX_SEARCH_STATES) {
+				return false;
+			}
+			if (sectionIndex >= sections.size()) {
+				return true;
+			}
+
+			for (Option option : sections.get(sectionIndex).options) {
+				if (previous != null && !previous.isNeighbor(option.offset)) {
+					continue;
+				}
+				if (Plan.touches(option.positive, negativeCells) || Plan.touches(option.negative, positiveCells)) {
+					continue;
+				}
+
+				choices[sectionIndex] = option.offset;
+				positiveCells.addAll(option.positive);
+				negativeCells.addAll(option.negative);
+
+				if (solve(sectionIndex + 1, option.offset)) {
+					return true;
+				}
+
+				Plan.removeLast(positiveCells, option.positive.size());
+				Plan.removeLast(negativeCells, option.negative.size());
+				choices[sectionIndex] = null;
+			}
+			return false;
+		}
 	}
 }

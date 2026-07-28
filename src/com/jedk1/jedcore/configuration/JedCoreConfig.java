@@ -990,11 +990,21 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.BottleSource", false);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.AbilityCollisionRadius", 1.6);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.EntityCollisionRadius", 1.6);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Enabled", true);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Damage", 3.0);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Range", 40);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Speed", 2);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Trail.RevertTime", 700);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Collision.SampleSpacing", 0.25);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Push.Enabled", true);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Push.Strength", 1.5);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Push.Lift", 0.15);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SpiralRelease.Push.Distance", 20.0);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Collisions.FireShield.Enabled", false);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Collisions.FireShield.RemoveFirst", true);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Collisions.FireShield.RemoveSecond", false);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Combination", Arrays.asList("Torrent:SHIFT_DOWN", "Torrent:SHIFT_UP", "Torrent:SHIFT_DOWN", "Torrent:SHIFT_UP", "WaterManipulation:SHIFT_DOWN"));
-		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Instructions", "Torrent (Tap sneak) > Torrent (Tap sneak) > WaterManipulation (Hold sneak) > WaterManipulation (Left-click multiple times)");
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Instructions", "Torrent (Tap sneak) > Torrent (Tap sneak) > WaterManipulation (Hold sneak) > WaterManipulation (Left-click multiple times, or release sneak to fire a spiral)");
 		
 		config.addDefault("Abilities.Water.Ice.Passive.Skate.Enabled", true);
 		config.addDefault("Abilities.Water.Ice.Passive.Skate.SpeedFactor", 4);

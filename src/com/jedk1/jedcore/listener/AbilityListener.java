@@ -58,6 +58,7 @@ import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.FireAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.MultiAbilityManager;
+import com.projectkorra.projectkorra.event.AbilityRecalculateAttributeEvent;
 import com.projectkorra.projectkorra.airbending.Suffocate;
 import com.projectkorra.projectkorra.earthbending.EarthArmor;
 import com.projectkorra.projectkorra.earthbending.Shockwave;
@@ -102,6 +103,13 @@ public class AbilityListener implements Listener {
 	}
 
 	private final List<UUID> recentlyDropped = new ArrayList<>();
+
+	@EventHandler
+	public void onAbilityRecalculateAttribute(AbilityRecalculateAttributeEvent event) {
+		if (event.getAbility() instanceof WaterGimbal) {
+			WaterGimbal.applyAvatarStateModifier(event);
+		}
+	}
 
 	@EventHandler(priority = EventPriority.LOWEST)
 	// Abilities that should bypass punch cancels should be handled here.
