@@ -8,6 +8,7 @@ import com.projectkorra.projectkorra.Element;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.AvatarAbility;
+import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -19,6 +20,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.BlockState;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -150,18 +152,24 @@ public class ESStream extends AvatarAbility implements AddonAbility {
 
 	private void handleNearbyEntities() {
 		for (Entity e : GeneralMethods.getEntitiesAroundPoint(stream, 1.5)) {
-			if (e instanceof Player && e == player) {
+			if (!isAffectableEntity(e)) {
 				continue;
 			}
 			applyStreamEffects(e);
 		}
 	}
 
+	private boolean isAffectableEntity(Entity entity) {
+		return entity instanceof LivingEntity &&
+				entity.getEntityId() != player.getEntityId() &&
+				!(entity instanceof ArmorStand) &&
+				!RegionProtection.isRegionProtected(this, entity.getLocation()) &&
+				!((entity instanceof Player targetPlayer) && Commands.invincible.contains(targetPlayer.getName()));
+	}
+
 	private void applyStreamEffects(Entity entity) {
-		GeneralMethods.setVelocity(this, entity, dir.normalize().multiply(knockback));
-		if (entity instanceof LivingEntity) {
-			DamageHandler.damageEntity(entity, damage, this);
-		}
+		GeneralMethods.setVelocity(this, entity, dir.clone().normalize().multiply(knockback));
+		DamageHandler.damageEntity(entity, damage, this);
 	}
 
 	private void updateStreamDirection() {
@@ -193,6 +201,7 @@ public class ESStream extends AvatarAbility implements AddonAbility {
 		List<BlockState> blocks = new ArrayList<>();
 		for (Location loc : GeneralMethods.getCircle(stream, (int) radius, 0, false, true, 0)) {
 			if (JCMethods.isUnbreakable(loc.getBlock()) || RegionProtection.isRegionProtected(this, loc)) continue;
+			if (!EarthAbility.isEarthbendable(player, loc.getBlock())) continue;
 			blocks.add(loc.getBlock().getState());
 			new RegenTempBlock(loc.getBlock(), Material.AIR, Material.AIR.createBlockData(), regen, false);
 		}
@@ -201,7 +210,7 @@ public class ESStream extends AvatarAbility implements AddonAbility {
 
 	private void damageNearbyEntitiesOnCollision() {
         GeneralMethods.getEntitiesAroundPoint(stream, radius).stream().filter(e -> !(e instanceof Player) || e != player).filter(e -> !RegionProtection.isRegionProtected(this, e.getLocation()) && (!(e instanceof Player targetPlayer) || !Commands.invincible.contains((targetPlayer).getName()))).forEach(e -> {
-            GeneralMethods.setVelocity(this, e, dir.normalize().multiply(knockback));
+            GeneralMethods.setVelocity(this, e, dir.clone().normalize().multiply(knockback));
             if (e instanceof LivingEntity) DamageHandler.damageEntity(e, damage, this);
         });
 	}
@@ -239,7 +248,7 @@ public class ESStream extends AvatarAbility implements AddonAbility {
 
 	private void playIndividualStreamParticles(int particleIndex) {
 		for (double d = -4; d <= 0; d += 0.1) {
-			if (origin.distance(stream) < d) continue;
+			if (origin.distance(stream) < -d) continue;
 			Location l = stream.clone().add(dir.clone().normalize().multiply(d));
 			double r = Math.min(0.75, d * -1 / 5);
 			Vector ov = GeneralMethods.getOrthogonalVector(dir, angle + (90 * particleIndex) + d, r);
@@ -259,11 +268,11 @@ public class ESStream extends AvatarAbility implements AddonAbility {
 				String color = "#FFFFFF";
 				float offset = 0.05F;
 				float speed = 0.005F;
-				int viewDistance = 50;
+				int alpha = 50;
 				if (rand.nextInt(30) == 0) {
 					JCMethods.displayColoredParticles(color, location, 1, 0, 0, 0, speed);
 				} else {
-					JCMethods.displayColoredParticles(color, location, 1, offset, offset, offset, speed, viewDistance);
+					JCMethods.displayColoredParticles(color, location, 1, offset, offset, offset, speed, alpha);
 				}
 				break;
 			case 2:

@@ -15,9 +15,11 @@ import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.firebending.BlazeArc;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
+import com.projectkorra.projectkorra.util.TempBlock;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.ArmorStand;
@@ -32,6 +34,7 @@ public class ESFire extends AvatarAbility implements AddonAbility {
 	private Vector direction;
 	private double travelled;
 	private boolean controllable;
+	private long fireDuration;
 
 	@Attribute(Attribute.COOLDOWN)
 	private long cooldown;
@@ -78,6 +81,7 @@ public class ESFire extends AvatarAbility implements AddonAbility {
 		range = config.getDouble("Abilities.Avatar.ElementSphere.Fire.Range");
 		damage = config.getDouble("Abilities.Avatar.ElementSphere.Fire.Damage");
 		burnTime = config.getLong("Abilities.Avatar.ElementSphere.Fire.BurnDuration");
+		fireDuration = config.getLong("Abilities.Avatar.ElementSphere.Fire.FireDuration");
 		speed = config.getInt("Abilities.Avatar.ElementSphere.Fire.Speed");
 		controllable = config.getBoolean("Abilities.Avatar.ElementSphere.Fire.Controllable");
 		
@@ -86,7 +90,7 @@ public class ESFire extends AvatarAbility implements AddonAbility {
 	
 	private void applyModifiers() {
 		if (bPlayer.canUseSubElement(SubElement.BLUE_FIRE)) {
-			cooldown *= (long) BlueFireAbility.getCooldownFactor();
+			cooldown = (long) (cooldown * BlueFireAbility.getCooldownFactor());
 			range *= BlueFireAbility.getRangeFactor();
 			damage *= BlueFireAbility.getDamageFactor();
 		}
@@ -178,10 +182,17 @@ public class ESFire extends AvatarAbility implements AddonAbility {
 	}
 
 	private void placeFire() {
-		if (GeneralMethods.isSolid(location.getBlock().getRelative(BlockFace.DOWN))) {
-			location.getBlock().setType(Material.FIRE);
-			new BlazeArc(player, location, direction, 2);
+		Block block = location.getBlock();
+
+		if (!GeneralMethods.isSolid(block.getRelative(BlockFace.DOWN))) {
+			return;
 		}
+
+		if (fireDuration > 0 && FireAbility.isIgnitable(block)) {
+			new TempBlock(block, FireAbility.createFireState(block, bPlayer.hasSubElement(Element.BLUE_FIRE)), fireDuration);
+		}
+
+		new BlazeArc(player, location, direction, 2);
 	}
 	
 	@Override

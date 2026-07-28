@@ -84,6 +84,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Avatar.ElementSphere.Fire.Uses", 20);
 		config.addDefault("Abilities.Avatar.ElementSphere.Fire.Damage", 3.0);
 		config.addDefault("Abilities.Avatar.ElementSphere.Fire.BurnDuration", 3000);
+		config.addDefault("Abilities.Avatar.ElementSphere.Fire.FireDuration", 15000);
 		config.addDefault("Abilities.Avatar.ElementSphere.Fire.Speed", 3);
 		config.addDefault("Abilities.Avatar.ElementSphere.Fire.Controllable", false);
 		config.addDefault("Abilities.Avatar.ElementSphere.Water.Cooldown", 500);

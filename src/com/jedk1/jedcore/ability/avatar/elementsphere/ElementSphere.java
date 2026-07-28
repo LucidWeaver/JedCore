@@ -11,7 +11,9 @@ import com.projectkorra.projectkorra.ability.MultiAbility;
 import com.projectkorra.projectkorra.ability.util.MultiAbilityManager;
 import com.projectkorra.projectkorra.ability.util.MultiAbilityManager.MultiAbilityInfoSub;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.region.RegionProtection;
+import com.projectkorra.projectkorra.util.ActionBar;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -28,14 +30,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class ElementSphere extends AvatarAbility implements AddonAbility, MultiAbility {
 
-	protected static final ConcurrentMap<Player, HashMap<Integer, String>> abilities = new ConcurrentHashMap<>();
 	private static final ArrayList<MultiAbilityInfoSub> multiAbilityInfo = new ArrayList<>();
 
 	static {
@@ -51,6 +49,7 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 	private int fireUses;
 	private int waterUses;
 	private int earthUses;
+	private int streamRequiredUses;
 	private boolean setup;
 	private Location location;
 	private double yaw;
@@ -100,21 +99,27 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 			return;
 		}
 
-		switch (player.getInventory().getHeldItemSlot()) {
+		int slot = player.getInventory().getHeldItemSlot();
+
+		if (slot < 0 || slot >= multiAbilityInfo.size() || !checkPermission(player, multiAbilityInfo.get(slot).getName())) {
+			return;
+		}
+
+		switch (slot) {
 			case 0:
-				if (checkPermission(player, "Air")) new ESAir(player);
+				new ESAir(player);
 				break;
 			case 1:
-				if (checkPermission(player, "Earth")) new ESEarth(player);
+				new ESEarth(player);
 				break;
 			case 2:
-				if (checkPermission(player, "Fire")) new ESFire(player);
+				new ESFire(player);
 				break;
 			case 3:
-				if (checkPermission(player, "Water")) new ESWater(player);
+				new ESWater(player);
 				break;
 			case 4:
-				if (checkPermission(player, "Stream")) new ESStream(player);
+				new ESStream(player);
 				break;
 		}
 	}
@@ -137,7 +142,7 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		if (!isRemoved()) {
 			bindAndCooldown(player);
 			enableFlight(player);
-			checkBoundAbilityName();
+			checkMultiAbilityBound();
 		}
 	}
 
@@ -150,8 +155,8 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		flightHandler.createInstance(player, this.getName());
 	}
 
-	private void checkBoundAbilityName() {
-		if (ChatColor.stripColor(bPlayer.getBoundAbilityName()) == null) {
+	private void checkMultiAbilityBound() {
+		if (!MultiAbilityManager.hasMultiAbilityBound(player, "ElementSphere")) {
 			remove();
 		}
 	}
@@ -163,6 +168,7 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		fireUses = config.getInt("Abilities.Avatar.ElementSphere.Fire.Uses");
 		waterUses = config.getInt("Abilities.Avatar.ElementSphere.Water.Uses");
 		earthUses = config.getInt("Abilities.Avatar.ElementSphere.Earth.Uses");
+		streamRequiredUses = config.getInt("Abilities.Avatar.ElementSphere.Stream.RequiredUses");
 		cooldown = config.getLong("Abilities.Avatar.ElementSphere.Cooldown");
 		duration = config.getLong("Abilities.Avatar.ElementSphere.Duration");
 		height = config.getDouble("Abilities.Avatar.ElementSphere.MaxControlledHeight");
@@ -172,10 +178,12 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 	@Override
 	public void progress() {
 		if (!checkPlayerValidity()) {
+			remove();
 			return;
 		}
 
 		if (!checkAbilityPrerequisites()) {
+			remove();
 			return;
 		}
 
@@ -193,8 +201,40 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		handleFlight();
 		handleEntityPush();
 		updateLocationAndPlayParticles();
+		displayRemainingUses();
 
 		setup = true;
+	}
+
+	private void displayRemainingUses() {
+		StringBuilder message = new StringBuilder();
+
+		appendEntry(message, 0, airUses > 0, "ESAir").append(' ').append(airUses);
+		appendEntry(message, 1, earthUses > 0, "ESEarth").append(' ').append(earthUses);
+		appendEntry(message, 2, fireUses > 0, "ESFire").append(' ').append(fireUses);
+		appendEntry(message, 3, waterUses > 0, "ESWater").append(' ').append(waterUses);
+		appendEntry(message, 4, hasStreamUses(), "ESStream");
+
+		ActionBar.sendActionBar(message.toString(), player);
+	}
+
+	private StringBuilder appendEntry(StringBuilder message, int index, boolean usable, String cooldownKey) {
+		if (message.length() > 0) {
+			message.append(ChatColor.DARK_GRAY).append("  ");
+		}
+
+		message.append(usable ? multiAbilityInfo.get(index).getAbilityColor() : ChatColor.DARK_GRAY);
+
+		if (bPlayer.isOnCooldown(cooldownKey)) {
+			message.append(ChatColor.STRIKETHROUGH);
+		}
+
+		return message.append(multiAbilityInfo.get(index).getName());
+	}
+
+	private boolean hasStreamUses() {
+		return airUses >= streamRequiredUses && earthUses >= streamRequiredUses
+				&& fireUses >= streamRequiredUses && waterUses >= streamRequiredUses;
 	}
 
 	private boolean checkPlayerValidity() {
@@ -235,7 +275,7 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 	private void handleEntityPush() {
 		for (Entity entity : GeneralMethods.getEntitiesAroundPoint(location, 2.5)) {
 			if (isPushableEntity(entity)) {
-				entity.setVelocity(entity.getLocation().toVector().subtract(player.getLocation().toVector()).multiply(1));
+				GeneralMethods.setVelocity(this, entity, entity.getLocation().toVector().subtract(player.getLocation().toVector()));
 			}
 		}
 	}
@@ -244,6 +284,7 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		return entity instanceof LivingEntity &&
 				entity.getEntityId() != player.getEntityId() &&
 				!(entity instanceof ArmorStand) &&
+				!((entity instanceof Player targetPlayer) && Commands.invincible.contains(targetPlayer.getName())) &&
 				!RegionProtection.isRegionProtected(player, entity.getLocation(), this);
 	}
 
@@ -326,12 +367,12 @@ public class ElementSphere extends AvatarAbility implements AddonAbility, MultiA
 		float offsetY = 0;
 		float offsetZ = 0;
 		float particleSpeed = 0.003f;
-		int viewDistance = 50;
+		int alpha = 50;
 
 		if (ThreadLocalRandom.current().nextInt(30) == 0) {
 			JCMethods.displayColoredParticles(color, loc, count, offsetX, offsetY, offsetZ, particleSpeed);
 		} else {
-			JCMethods.displayColoredParticles(color, loc, count, offsetX, offsetY, offsetZ, particleSpeed, viewDistance);
+			JCMethods.displayColoredParticles(color, loc, count, offsetX, offsetY, offsetZ, particleSpeed, alpha);
 		}
 	}
 
