@@ -10,24 +10,37 @@ import com.projectkorra.projectkorra.ability.AvatarAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
-import org.bukkit.Color;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
+import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.util.BoundingBox;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class SpiritBeam extends AvatarAbility implements AddonAbility {
 
+	private static final double BEAM_STEP = 0.5;
+	private static final double LIGHT_SPACING = 4.0;
+	private static final String PARTICLE_COLOR = "#A020F0";
+	private static final BlockData PARTICLE_BLOCK_DATA = Material.NETHER_PORTAL.createBlockData();
+	private static final BlockData AIR_BLOCK_DATA = Material.AIR.createBlockData();
+
     private Location location;
-	private Vector direction;
 	private boolean damagesBlocks;
 	private long regen;
 	private boolean avatarOnly;
+	private double entityCollisionRadius;
+	private int fireTicks;
 
 	@Attribute(Attribute.DURATION)
 	private long duration;
@@ -43,6 +56,7 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 	public SpiritBeam(Player player) {
 		super(player);
 
+		if (this.player == null || bPlayer == null) return;
 		if (bPlayer.isOnCooldown(this)) return;
 
 		setFields();
@@ -55,10 +69,12 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 	public void setFields() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		
-		duration = config.getInt("Abilities.Avatar.SpiritBeam.Duration");
-		cooldown = config.getInt("Abilities.Avatar.SpiritBeam.Cooldown");
+		duration = config.getLong("Abilities.Avatar.SpiritBeam.Duration");
+		cooldown = config.getLong("Abilities.Avatar.SpiritBeam.Cooldown");
 		damage = config.getDouble("Abilities.Avatar.SpiritBeam.Damage");
-		range = config.getInt("Abilities.Avatar.SpiritBeam.Range");
+		range = config.getDouble("Abilities.Avatar.SpiritBeam.Range");
+		entityCollisionRadius = config.getDouble("Abilities.Avatar.SpiritBeam.EntityCollisionRadius");
+		fireTicks = config.getInt("Abilities.Avatar.SpiritBeam.FireTicks");
 		avatarOnly = config.getBoolean("Abilities.Avatar.SpiritBeam.AvatarStateOnly");
 		damagesBlocks = config.getBoolean("Abilities.Avatar.SpiritBeam.BlockDamage.Enabled");
 		regen = config.getLong("Abilities.Avatar.SpiritBeam.BlockDamage.Regen");
@@ -100,64 +116,150 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 	}
 
 	private void createBeam() {
-		location = player.getLocation().add(0, 1.2, 0);
-		Vector beamDirection = location.getDirection().normalize().multiply(0.5);
+		Location origin = player.getLocation().add(0, 1.2, 0);
+		Vector beamDirection = origin.getDirection().normalize();
+		BeamPath beamPath = traceBeam(origin, beamDirection);
 
-		for (double i = 0; i < range; i += 0.5) {
-			location = location.add(beamDirection);
+		location = beamPath.locations.isEmpty() ? origin : beamPath.locations.get(beamPath.locations.size() - 1);
+		displayBeam(beamPath.locations);
+		damageNearbyEntities(origin, beamDirection, beamPath.damageLength);
 
-			if (isBeamObstructed(location)) {
-				return;
-			}
-
-			displayBeamParticles(location, beamDirection);
-			JCMethods.emitLight(location);
-			damageNearbyEntities(location);
-
-			if (handleBlockCollision(location)) {
-				return;
-			}
+		if (beamPath.impactBlock != null) {
+			handleBlockCollision(beamPath.impactLocation, beamPath.impactBlock);
 		}
+	}
+
+	private BeamPath traceBeam(Location origin, Vector beamDirection) {
+		double beamLength = Math.max(0, range);
+		if (beamLength == 0) {
+			return new BeamPath(new ArrayList<>(), 0, null, null);
+		}
+
+		Block impactBlock = null;
+		Location impactLocation = null;
+		RayTraceResult blockHit = origin.getWorld().rayTraceBlocks(
+				origin, beamDirection, beamLength, FluidCollisionMode.NEVER, true
+		);
+
+		if (blockHit != null && blockHit.getHitBlock() != null) {
+			impactBlock = blockHit.getHitBlock();
+			impactLocation = blockHit.getHitPosition().toLocation(origin.getWorld());
+			beamLength = origin.distance(impactLocation);
+		}
+
+		List<Location> locations = new ArrayList<>();
+		double damageLength = 0;
+		int steps = (int) Math.ceil(beamLength / BEAM_STEP);
+
+		for (int step = 1; step <= steps; step++) {
+			double distance = Math.min(step * BEAM_STEP, beamLength);
+			Location current = origin.clone().add(beamDirection.clone().multiply(distance));
+			boolean impact = impactBlock != null && step == steps;
+			Location protectionLocation = impact ? impactBlock.getLocation() : current;
+
+			if (isBeamObstructed(protectionLocation)) {
+				impactBlock = null;
+				impactLocation = null;
+				break;
+			}
+
+			locations.add(current);
+			damageLength = impact ? Math.max(0, distance - 0.01) : distance;
+		}
+
+		return new BeamPath(locations, damageLength, impactLocation, impactBlock);
 	}
 
 	private boolean isBeamObstructed(Location location) {
 		return RegionProtection.isRegionProtected(player, location, this);
 	}
 
-	private void displayBeamParticles(Location location, Vector direction) {
-		String purple = "#A020F0";
-		JCMethods.displayColoredParticles(purple, location, 1, 0f, 0f, 0f, 0f);
-		JCMethods.displayColoredParticles(purple, location, 1, (float) Math.random() / 3, (float) Math.random() / 3, (float) Math.random() / 3, 0f);
-		float randomOffset = (float) Math.random() / 3;
-		BlockData blockData = Material.NETHER_PORTAL.createBlockData();
-		location.getWorld().spawnParticle(Particle.BLOCK_CRACK, location, 1, randomOffset, randomOffset, randomOffset, 0.1F, blockData);
-		location.getWorld().spawnParticle(Particle.BLOCK_CRACK, location, 1, (float) direction.getX(), (float) direction.getY(), (float) direction.getZ(), 0.1F, blockData);
-	}
+	private void displayBeam(List<Location> locations) {
+		int lightInterval = Math.max(1, (int) Math.ceil(LIGHT_SPACING / BEAM_STEP));
 
-	private void damageNearbyEntities(Location location) {
-		for (Entity entity : GeneralMethods.getEntitiesAroundPoint(location, 2)) {
-			if (entity instanceof LivingEntity livingEntity && livingEntity.getEntityId() != player.getEntityId()) {
-				livingEntity.setFireTicks(100);
-				DamageHandler.damageEntity(livingEntity, damage, this);
+		for (int i = 0; i < locations.size(); i++) {
+			Location beamLocation = locations.get(i);
+			displayBeamParticles(beamLocation);
+
+			if (i % lightInterval == 0 || i == locations.size() - 1) {
+				JCMethods.emitLight(beamLocation);
 			}
 		}
 	}
 
-	private boolean handleBlockCollision(Location location) {
-		if (location.getBlock().getType().isSolid()) {
-			location.getWorld().createExplosion(location, 0F);
-			if (damagesBlocks) {
-				damageBlocksInRadius(location);
+	private void displayBeamParticles(Location location) {
+		JCMethods.displayColoredParticles(PARTICLE_COLOR, location, 1, 0f, 0f, 0f, 0f);
+		float randomOffset = (float) Math.random() / 3;
+		location.getWorld().spawnParticle(
+				Particle.BLOCK_CRACK, location, 1, randomOffset, randomOffset, randomOffset, 0.1F, PARTICLE_BLOCK_DATA
+		);
+	}
+
+	private void damageNearbyEntities(Location origin, Vector beamDirection, double beamLength) {
+		if (damage <= 0 || beamLength <= 0) {
+			return;
+		}
+
+		double collisionRadius = Math.max(0, entityCollisionRadius);
+		Vector originVector = origin.toVector();
+		Vector endVector = originVector.clone().add(beamDirection.clone().multiply(beamLength));
+		BoundingBox beamBounds = BoundingBox.of(originVector, endVector).expand(collisionRadius);
+
+		for (Entity entity : origin.getWorld().getNearbyEntities(beamBounds)) {
+			if (!(entity instanceof LivingEntity livingEntity) || entity.getEntityId() == player.getEntityId()) {
+				continue;
 			}
+
+			BoundingBox entityBounds = entity.getBoundingBox().expand(collisionRadius);
+			if (entityBounds.rayTrace(originVector, beamDirection, beamLength) == null
+					|| isBeamObstructed(entity.getLocation())
+					|| !hasClearLineOfSight(origin, livingEntity)) {
+				continue;
+			}
+
+			if (fireTicks > 0) {
+				livingEntity.setFireTicks(Math.max(livingEntity.getFireTicks(), fireTicks));
+			}
+			DamageHandler.damageEntity(livingEntity, damage, this);
+		}
+	}
+
+	private boolean hasClearLineOfSight(Location origin, LivingEntity entity) {
+		Vector target = entity.getBoundingBox().getCenter();
+		Vector difference = target.clone().subtract(origin.toVector());
+		double distance = difference.length();
+
+		if (distance == 0) {
 			return true;
 		}
-		return false;
+
+		RayTraceResult obstruction = origin.getWorld().rayTraceBlocks(
+				origin, difference.normalize(), distance, FluidCollisionMode.NEVER, true
+		);
+		return obstruction == null;
+	}
+
+	private void handleBlockCollision(Location impactLocation, Block impactBlock) {
+		impactLocation.getWorld().createExplosion(impactLocation, 0F);
+		if (damagesBlocks) {
+			damageBlocksInRadius(impactBlock.getLocation());
+		}
 	}
 
 	private void damageBlocksInRadius(Location center) {
-		for (Location loc : GeneralMethods.getCircle(center, (int) radius, 0, false, true, 0)) {
-			if (!JCMethods.isUnbreakable(loc.getBlock())) {
-				new RegenTempBlock(loc.getBlock(), Material.AIR, Material.AIR.createBlockData(), regen, false);
+		double blockRadius = Math.max(0, radius);
+		double radiusSquared = blockRadius * blockRadius;
+
+		if (blockRadius <= 0) {
+			return;
+		}
+
+		for (Block block : GeneralMethods.getBlocksAroundPoint(center, blockRadius)) {
+			if (block.getLocation().distanceSquared(center) < radiusSquared
+					&& !block.getType().isAir()
+					&& !isBeamObstructed(block.getLocation())
+					&& !JCMethods.isUnbreakable(block)) {
+				new RegenTempBlock(block, Material.AIR, AIR_BLOCK_DATA, regen, false);
 			}
 		}
 	}
@@ -184,7 +286,7 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 
 	@Override
 	public boolean isSneakAbility() {
-		return false;
+		return true;
 	}
 
 	@Override
@@ -201,14 +303,6 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 	public String getDescription() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		return "* JedCore Addon *\n" + config.getString("Abilities.Avatar.SpiritBeam.Description");
-	}
-
-	public Vector getDirection() {
-		return direction;
-	}
-
-	public void setDirection(Vector direction) {
-		this.direction = direction;
 	}
 
 	public long getDuration() {
@@ -243,6 +337,22 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 		this.damage = damage;
 	}
 
+	public double getEntityCollisionRadius() {
+		return entityCollisionRadius;
+	}
+
+	public void setEntityCollisionRadius(double entityCollisionRadius) {
+		this.entityCollisionRadius = entityCollisionRadius;
+	}
+
+	public int getFireTicks() {
+		return fireTicks;
+	}
+
+	public void setFireTicks(int fireTicks) {
+		this.fireTicks = fireTicks;
+	}
+
 	public boolean damagesBlocks() {
 		return damagesBlocks;
 	}
@@ -275,7 +385,21 @@ public class SpiritBeam extends AvatarAbility implements AddonAbility {
 
 	@Override
 	public boolean isEnabled() {
-		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
-		return config.getBoolean("Abilities.Avatar.SpiritBeam.Enabled");
+		return JedCoreConfig.isAbilityEnabled(this.player, "Abilities.Avatar.SpiritBeam.Enabled");
+	}
+
+	private static class BeamPath {
+
+		private final List<Location> locations;
+		private final double damageLength;
+		private final Location impactLocation;
+		private final Block impactBlock;
+
+		private BeamPath(List<Location> locations, double damageLength, Location impactLocation, Block impactBlock) {
+			this.locations = locations;
+			this.damageLength = damageLength;
+			this.impactLocation = impactLocation;
+			this.impactBlock = impactBlock;
+		}
 	}
 }

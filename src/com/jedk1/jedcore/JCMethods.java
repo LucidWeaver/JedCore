@@ -334,7 +334,7 @@ public class JCMethods {
 	}
 
 	public static void emitLight(Location loc) {
-		ConfigurationSection config = JedCoreConfig.getConfig((Player)null);
+		ConfigurationSection config = JedCoreConfig.getConfig(loc.getWorld());
 		if (config.getBoolean("Properties.Fire.DynamicLight.Enabled")) {
 			int brightness = config.getInt("Properties.Fire.DynamicLight.Brightness");
 			long keepAlive = config.getLong("Properties.Fire.DynamicLight.KeepAlive");

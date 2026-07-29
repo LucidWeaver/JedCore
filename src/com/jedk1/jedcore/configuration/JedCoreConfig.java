@@ -104,12 +104,14 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Avatar.SpiritBeam.Enabled", true);
 		config.addDefault("Abilities.Avatar.SpiritBeam.Description", "An energybending ability usable by the Avatar. "
 				+ "To use, one must enter the AvatarState and hold down Sneak (Default: Shift). "
-			+ "This ability lasts only for a few seconds before requiring "
+			+ "This ability lasts briefly before requiring "
 			+ "another activation.");
 		config.addDefault("Abilities.Avatar.SpiritBeam.Cooldown", 15000);
 		config.addDefault("Abilities.Avatar.SpiritBeam.Duration", 1000);
 		config.addDefault("Abilities.Avatar.SpiritBeam.Range", 40);
 		config.addDefault("Abilities.Avatar.SpiritBeam.Damage", 10.0);
+		config.addDefault("Abilities.Avatar.SpiritBeam.EntityCollisionRadius", 2.0);
+		config.addDefault("Abilities.Avatar.SpiritBeam.FireTicks", 100);
 		config.addDefault("Abilities.Avatar.SpiritBeam.AvatarStateOnly", true);
 		config.addDefault("Abilities.Avatar.SpiritBeam.BlockDamage.Enabled", true);
 		config.addDefault("Abilities.Avatar.SpiritBeam.BlockDamage.Radius", 3);
@@ -1131,5 +1133,31 @@ public class JedCoreConfig {
 
 		String prefix = "Worlds." + world.getName();
 		return new SubsectionConfigurationDecorator(plugin.getConfig(), prefix);
+	}
+
+	public static boolean isAbilityEnabled(Player player, String path) {
+		if (player != null) {
+			return getConfig(player).getBoolean(path);
+		}
+
+		FileConfiguration config = plugin.getConfig();
+		boolean globallyEnabled = config.getBoolean(path);
+		if (globallyEnabled || !config.getBoolean("Properties.PerWorldConfig")) {
+			return globallyEnabled;
+		}
+
+		ConfigurationSection worlds = config.getConfigurationSection("Worlds");
+		if (worlds == null) {
+			return false;
+		}
+
+		for (String world : worlds.getKeys(false)) {
+			String worldPath = world + "." + path;
+			if (worlds.isBoolean(worldPath) && worlds.getBoolean(worldPath)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
