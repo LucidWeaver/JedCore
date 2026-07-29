@@ -109,6 +109,9 @@ public class AbilityListener implements Listener {
 		if (event.getAbility() instanceof WaterGimbal) {
 			WaterGimbal.applyAvatarStateModifier(event);
 		}
+		if (event.getAbility() instanceof AirBreath) {
+			AirBreath.applyAvatarStateModifier(event);
+		}
 	}
 
 	@EventHandler(priority = EventPriority.LOWEST)
@@ -433,7 +436,7 @@ public class AbilityListener implements Listener {
 
 		if (!player.isSneaking() && bPlayer.canBendIgnoreCooldowns(coreAbil)) {
 			if (coreAbil instanceof AirAbility && bPlayer.isElementToggled(Element.AIR)) {
-				if (GeneralMethods.isWeapon(player.getInventory().getItemInMainHand().getType()) && !plugin.getConfig().getBoolean("Properties.Air.CanBendWithWeapons")) {
+				if (GeneralMethods.isWeapon(player.getInventory().getItemInMainHand().getType()) && !ProjectKorra.plugin.getConfig().getBoolean("Properties.Air.CanBendWithWeapons")) {
 					return;
 				}
 				if (abilClass.equals(AirBreath.class)) {

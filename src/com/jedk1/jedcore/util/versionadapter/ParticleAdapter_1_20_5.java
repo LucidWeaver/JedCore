@@ -8,7 +8,7 @@ public class ParticleAdapter_1_20_5 implements ParticleAdapter {
     public void displayColoredParticles(String hex, Location location, int amount, double offsetX, double offsetY, double offsetZ, double extra, int alpha) {
         if (location.getWorld() == null) return;
         int[] color = hexToRgb(hex);
-        location.getWorld().spawnParticle(Particle.valueOf("ENTITY_EFFECT"), location, amount, extra, offsetX, offsetY, offsetZ, Color.fromARGB(alpha, color[0], color[1], color[2]));
+        location.getWorld().spawnParticle(Particle.valueOf("ENTITY_EFFECT"), location, amount, offsetX, offsetY, offsetZ, extra, Color.fromARGB(alpha, color[0], color[1], color[2]));
     }
 
     @Override

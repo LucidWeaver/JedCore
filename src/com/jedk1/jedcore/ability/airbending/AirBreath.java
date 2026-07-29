@@ -6,8 +6,11 @@ import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.AirAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.attribute.AttributeCache;
 import com.projectkorra.projectkorra.command.Commands;
+import com.projectkorra.projectkorra.event.AbilityRecalculateAttributeEvent;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
 
@@ -23,7 +26,13 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 public class AirBreath extends AirAbility implements AddonAbility {
+
+	private static final String PLAYER_DAMAGE_ATTRIBUTE = "Player" + Attribute.DAMAGE;
 
 	private int particles;
 	private boolean coolLava;
@@ -40,7 +49,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 	private long cooldown;
 	@Attribute(Attribute.DURATION)
 	private long duration;
-	@Attribute(Attribute.DAMAGE)
+	@Attribute(PLAYER_DAMAGE_ATTRIBUTE)
 	private double playerDamage;
 	@Attribute(Attribute.DAMAGE)
 	private double mobDamage;
@@ -85,9 +94,35 @@ public class AirBreath extends AirAbility implements AddonAbility {
 		avatarKnockback = config.getDouble("Abilities.Air.AirBreath.Avatar.Knockback");
 	}
 
+	public static void applyAvatarStateModifier(AbilityRecalculateAttributeEvent event) {
+		AirBreath ability = (AirBreath) event.getAbility();
+
+		if (ability.bPlayer == null || !ability.bPlayer.isAvatarState() || !event.getAttribute().equals(PLAYER_DAMAGE_ATTRIBUTE)) {
+			return;
+		}
+
+		Map<String, AttributeCache> attributes = CoreAbility.getAttributeCache(ability);
+		AttributeCache target = attributes.get(PLAYER_DAMAGE_ATTRIBUTE);
+		AttributeCache inherited = attributes.get(Attribute.DAMAGE);
+
+		if (target == null || inherited == null || target.getAvatarStateModifier().isPresent()) {
+			return;
+		}
+
+		if (inherited.getAvatarStateModifier().isPresent()) {
+			event.addModification(inherited.getAvatarStateModifier().get());
+		}
+	}
+
 	@Override
 	public void progress() {
 		if (player.isDead() || !player.isOnline()) {
+			remove();
+			return;
+		}
+
+		if (!bPlayer.canBendIgnoreCooldowns(this)) {
+			bPlayer.addCooldown(this);
 			remove();
 			return;
 		}
@@ -120,7 +155,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 			return false;
 		}
 
-		return isTransparent(block);
+		return GeneralMethods.isTransparent(block);
 	}
 
 	private void createBeam() {
@@ -129,6 +164,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 		double step = 1;
 		double size = 0;
 		double damageregion = 1.5;
+		Set<Integer> affectedEntities = new HashSet<>();
 
 		for (double i = 0; i < range; i += step) {
 			loc = loc.add(dir.clone().multiply(step));
@@ -139,7 +175,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 				return;
 			}
 
-			handleEntityCollisions(loc, dir, damageregion);
+			handleEntityCollisions(loc, dir, damageregion, affectedEntities);
 			displayBeamParticles(loc, size);
 			handleBlockEffects();
 		}
@@ -147,7 +183,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 
 	private boolean handleLocationSafety(Location loc) {
 		if (!isLocationSafe(loc)) {
-			if (!isTransparent(loc.getBlock()) && player.getLocation().getPitch() > 30) {
+			if (!GeneralMethods.isTransparent(loc.getBlock()) && player.getLocation().getPitch() > 30) {
 				GeneralMethods.setVelocity(this, player, player.getLocation().getDirection().multiply(-launch));
 			}
 			return false;
@@ -155,13 +191,15 @@ public class AirBreath extends AirAbility implements AddonAbility {
 		return true;
 	}
 
-	private void handleEntityCollisions(Location loc, Vector dir, double damageregion) {
+	private void handleEntityCollisions(Location loc, Vector dir, double damageregion, Set<Integer> affectedEntities) {
 		for (Entity entity : GeneralMethods.getEntitiesAroundPoint(loc, damageregion)) {
 			if (isValidTarget(entity)) {
 				if (isEntityProtected(entity)) {
 					continue;
 				}
-				applyEntityEffects(entity, dir);
+				if (affectedEntities.add(entity.getEntityId())) {
+					applyEntityEffects(entity, dir);
+				}
 			}
 		}
 	}
@@ -182,8 +220,7 @@ public class AirBreath extends AirAbility implements AddonAbility {
 				livingEntity.setFireTicks(0);
 			}
 		}
-		dir.multiply(knockback);
-		GeneralMethods.setVelocity(this, entity, dir);
+		GeneralMethods.setVelocity(this, entity, dir.clone().multiply(knockback));
 	}
 
 	private void applyDamage(LivingEntity entity) {
@@ -204,12 +241,17 @@ public class AirBreath extends AirAbility implements AddonAbility {
 
 	private void displayBeamParticles(Location loc, double size) {
 		if (isWater(loc.getBlock())) {
-			loc.getWorld().spawnParticle(Particle.WATER_BUBBLE, loc, 0, Math.random(), Math.random(), Math.random(), size);
+			loc.getWorld().spawnParticle(Particle.WATER_BUBBLE, loc, particles, Math.random(), Math.random(), Math.random(), size);
 		}
 
-		loc.getWorld().spawnParticle(Particle.CLOUD, loc, 0, Math.random(), Math.random(), Math.random(), size);
-		JCMethods.displayColoredParticles("#FFFFFF", loc, particles, Math.random(), Math.random(), Math.random(), 0f);
-		JCMethods.displayColoredParticles("#FFFFFF", player.getLocation(), particles, Math.random(), Math.random(), Math.random(), size, 50);
+		String configuredParticle = getConfig().getString("Properties.Air.Particles");
+		if ("CLOUD".equalsIgnoreCase(configuredParticle)) {
+			loc.getWorld().spawnParticle(Particle.CLOUD, loc, particles, Math.random(), Math.random(), Math.random(), size);
+			JCMethods.displayColoredParticles("#FFFFFF", loc, particles, Math.random(), Math.random(), Math.random(), 0f);
+			JCMethods.displayColoredParticles("#FFFFFF", player.getLocation(), particles, Math.random(), Math.random(), Math.random(), size, 50);
+		} else {
+			playAirbendingParticles(loc, particles, Math.random(), Math.random(), Math.random());
+		}
 	}
 
 	private void handleBlockEffects() {
