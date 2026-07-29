@@ -151,7 +151,7 @@ public class SonicBlast extends AirAbility implements AddonAbility {
 				playAirbendingParticles(temp, 1, 0, 0, 0);
 			}
 
-			boolean hit = CollisionDetector.checkEntityCollisions(player, new Sphere(location.toVector(), entityCollisionRadius), entity -> {
+			boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), entityCollisionRadius), entity -> {
 				DamageHandler.damageEntity(entity, damage, this);
 				LivingEntity lE = (LivingEntity) entity;
 

@@ -138,7 +138,7 @@ public class FireBall extends FireAbility implements AddonAbility {
 
 			JCMethods.emitLight(location);
 
-			boolean hitTarget = CollisionDetector.checkEntityCollisions(player, new Sphere(location.toVector(), collisionRadius), this::doDamage);
+			boolean hitTarget = CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), collisionRadius), this::doDamage);
 
 			if (!hitTarget) {
 				if (this.distanceTravelled > 2 && this.fireTrail) {

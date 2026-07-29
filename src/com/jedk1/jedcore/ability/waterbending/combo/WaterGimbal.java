@@ -541,7 +541,7 @@ public class WaterGimbal extends WaterAbility implements AddonAbility, ComboAbil
 	private void hitAt(Location location) {
 		AABB collider = AABB.BlockBounds.at(location).scale(entityCollisionRadius * 2.0);
 
-		CollisionDetector.checkEntityCollisions(player, collider, (entity) -> {
+		CollisionDetector.checkEntityCollisions(player, location.getWorld(), collider, (entity) -> {
 			LivingEntity target = (LivingEntity) entity;
 
 			if (isProtected(target) || !damaged.add(target.getUniqueId())) {

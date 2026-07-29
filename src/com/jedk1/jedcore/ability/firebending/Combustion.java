@@ -352,7 +352,7 @@ public class Combustion extends CombustionAbility implements AddonAbility {
 
 				Sphere collider = new Sphere(location.toVector(), entityCollisionRadius);
 
-				boolean hit = CollisionDetector.checkEntityCollisions(player, collider, (entity) -> {
+				boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), collider, (entity) -> {
 					location = entity.getLocation();
 					state = new CombustState(location);
 					return true;

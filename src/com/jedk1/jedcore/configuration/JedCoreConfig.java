@@ -192,7 +192,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Air.AirGlide.RequireGround", false);
 		
 		config.addDefault("Abilities.Air.AirPunch.Enabled", true);
-		config.addDefault("Abilities.Air.AirPunch.Description", "Left-Click in rapid succession to punch high desnity packets of air "
+		config.addDefault("Abilities.Air.AirPunch.Description", "Left-Click in rapid succession to punch high density packets of air "
 				+ "at enemies to do slight damage. A few punches can be thrown before the ability goes on cooldown.");
 		config.addDefault("Abilities.Air.AirPunch.Cooldown", 5000);
 		config.addDefault("Abilities.Air.AirPunch.Threshold", 500);

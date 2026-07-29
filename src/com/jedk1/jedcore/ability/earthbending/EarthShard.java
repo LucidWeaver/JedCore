@@ -235,7 +235,7 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 
 				AABB collider = BlockUtil.getFallingBlockBoundsFull(fb).scale(entityCollisionRadius * 2.0);
 
-				CollisionDetector.checkEntityCollisions(player, collider, (e) -> {
+				CollisionDetector.checkEntityCollisions(player, fb.getWorld(), collider, (e) -> {
 					DamageHandler.damageEntity(e, isMetal(fb.getBlockData().getMaterial()) ? metalDmg : normalDmg, this);
 					((LivingEntity) e).setNoDamageTicks(0);
 					fb.getLocation().getWorld().spawnParticle(Particle.BLOCK_CRACK, fb.getLocation(), 20, 0, 0, 0, 0, fb.getBlockData());

@@ -208,7 +208,7 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 
 			AABB collider = BlockUtil.getFallingBlockBoundsFull(fb).scale(entityCollisionRadius * 2.0);
 
-			CollisionDetector.checkEntityCollisions(player, collider, (entity) -> {
+			CollisionDetector.checkEntityCollisions(player, fb.getWorld(), collider, (entity) -> {
 				UUID uuid = entity.getUniqueId();
 				if (this.multipleHits || hitEntities.add(uuid)) {
 					DamageHandler.damageEntity(entity, isMetal(fb.getBlockData().getMaterial()) ? metalDmg : damage, this);

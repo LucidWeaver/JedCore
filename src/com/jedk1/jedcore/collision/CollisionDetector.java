@@ -18,13 +18,21 @@ import java.util.Set;
 
 public class CollisionDetector {
     public static boolean checkEntityCollisions(Player player, Collider collider, CollisionCallback function) {
-        return checkEntityCollisions(player, collider, function, true);
+        return checkEntityCollisions(player, player.getWorld(), collider, function, true);
+    }
+
+    public static boolean checkEntityCollisions(Player player, World world, Collider collider, CollisionCallback function) {
+        return checkEntityCollisions(player, world, collider, function, true);
     }
 
     // Checks a collider to see if it's hitting any entities near it.
     // Calls the CollisionCallback when hitting a target.
     // Returns true if it hits a target.
     public static boolean checkEntityCollisions(Player player, Collider collider, CollisionCallback callback, boolean livingOnly) {
+        return checkEntityCollisions(player, player.getWorld(), collider, callback, livingOnly);
+    }
+
+    public static boolean checkEntityCollisions(Player player, World world, Collider collider, CollisionCallback callback, boolean livingOnly) {
         // This is used to increase the lookup volume for nearby entities.
         // Entity locations can be out of the collider volume while still intersecting.
         final double ExtentBuffer = 4.0;
@@ -32,7 +40,6 @@ public class CollisionDetector {
         // Create the extent vector to use as size of bounding box to find nearby entities.
         Vector extent = collider.getHalfExtents().add(new Vector(ExtentBuffer, ExtentBuffer, ExtentBuffer));
 
-        World world = player.getWorld();
         Vector pos = collider.getPosition();
         Location location = new Location(world, pos.getX(), pos.getY(), pos.getZ());
 

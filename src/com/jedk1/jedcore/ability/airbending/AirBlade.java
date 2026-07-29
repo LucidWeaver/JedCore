@@ -172,7 +172,7 @@ public class AirBlade extends AirAbility implements AddonAbility {
 	}
 
 	private boolean handleEntityCollision(Location tempLoc) {
-		return CollisionDetector.checkEntityCollisions(player, new Sphere(tempLoc.toVector(), entityCollisionRadius), entity -> {
+		return CollisionDetector.checkEntityCollisions(player, tempLoc.getWorld(), new Sphere(tempLoc.toVector(), entityCollisionRadius), entity -> {
 			DamageHandler.damageEntity(entity, damage, this);
 
 			if (knockback > 0) {

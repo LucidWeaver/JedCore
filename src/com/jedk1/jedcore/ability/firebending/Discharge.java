@@ -160,7 +160,7 @@ public class Discharge extends LightningAbility implements AddonAbility {
 
 					Vector vec = l.toVector();
 
-					hit = CollisionDetector.checkEntityCollisions(player, new Sphere(l.toVector(), entityCollisionRadius), (entity) -> {
+					hit = CollisionDetector.checkEntityCollisions(player, l.getWorld(), new Sphere(l.toVector(), entityCollisionRadius), (entity) -> {
 						if (RegionProtection.isRegionProtected(this, entity.getLocation()) || ((entity instanceof Player) && Commands.invincible.contains(entity.getName()))) {
 							return true;
 						}

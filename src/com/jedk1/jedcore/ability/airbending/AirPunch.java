@@ -11,19 +11,19 @@ import com.projectkorra.projectkorra.ability.util.Collision;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class AirPunch extends AirAbility implements AddonAbility {
 
-	private final Map<Location, Double> locations = new ConcurrentHashMap<>();
+	private final List<Shot> activeShots = new ArrayList<>();
 
 	private int shots;
 	private long lastShotTime;
@@ -33,7 +33,7 @@ public class AirPunch extends AirAbility implements AddonAbility {
 	private long threshold;
 	@Attribute(Attribute.RANGE)
 	private double range;
-	@Attribute(Attribute.COOLDOWN)
+	@Attribute(Attribute.DAMAGE)
 	private double damage;
 	@Attribute("CollisionRadius")
 	private double entityCollisionRadius;
@@ -55,7 +55,16 @@ public class AirPunch extends AirAbility implements AddonAbility {
 
 		setFields();
 
+		if (!hasValidTravelSettings()) {
+			return;
+		}
+
 		start();
+
+		if (!isRemoved() && !hasValidTravelSettings()) {
+			remove();
+			return;
+		}
 
 		if (!isRemoved()) createShot();
 	}
@@ -74,12 +83,18 @@ public class AirPunch extends AirAbility implements AddonAbility {
 
 	@Override
 	public void progress() {
-		progressShots();
-
 		if (player.isDead() || !player.isOnline()) {
 			remove();
 			return;
 		}
+
+		if (!hasValidTravelSettings() || hasShotsOutsidePlayerWorld()) {
+			activeShots.clear();
+			prepareRemove();
+			return;
+		}
+
+		progressShots();
 
 		if (!bPlayer.canBendIgnoreBindsCooldowns(this)) {
 			prepareRemove();
@@ -96,7 +111,7 @@ public class AirPunch extends AirAbility implements AddonAbility {
 			bPlayer.addCooldown(this);
 		}
 
-		if (locations.isEmpty()) {
+		if (activeShots.isEmpty()) {
 			remove();
 		}
 	}
@@ -105,59 +120,76 @@ public class AirPunch extends AirAbility implements AddonAbility {
 		if (shots >= 1) {
 			lastShotTime = System.currentTimeMillis();
 			shots--;
-			locations.put(player.getEyeLocation().add(player.getLocation().getDirection().multiply(1.5).normalize()), 0D);
+
+			Location origin = player.getEyeLocation();
+			Location start = origin.clone().add(origin.getDirection());
+
+			if (!isPathBlocked(origin, start)) {
+				activeShots.add(new Shot(start, 0D));
+			}
 		}
 	}
 
 	private void progressShots() {
-		Iterator<Map.Entry<Location, Double>> iterator = locations.entrySet().iterator();
-		while (iterator.hasNext()) {
-			Map.Entry<Location, Double> entry = iterator.next();
-			Location originalLoc = entry.getKey();
-			double dist = entry.getValue();
-			ShotResult result = simulateShotProgression(originalLoc, dist);
+		List<Shot> shotsToProgress = new ArrayList<>(activeShots);
+		activeShots.clear();
 
-			iterator.remove();
+		for (Shot shot : shotsToProgress) {
+			ShotResult result = simulateShotProgression(shot.location(), shot.distance());
 
-			if (result.moved) {
-				locations.put(result.newLoc, result.newDist);
+			if (result.active()) {
+				activeShots.add(new Shot(result.newLoc(), result.newDist()));
 			}
 		}
 	}
 
-	private record ShotResult(Location newLoc, double newDist, boolean moved) {}
+	private record Shot(Location location, double distance) {}
+
+	private record ShotResult(Location newLoc, double newDist, boolean active) {}
 
 	private ShotResult simulateShotProgression(Location startLoc, double startDist) {
 		Location loc = startLoc.clone();
 		double dist = startDist;
-		boolean shouldRemove = false;
-		boolean moved = false;
 
-		for (int i = 0; i < 3 && !shouldRemove; i++) {
-			dist += speed;
-			if (dist >= range) {
-				shouldRemove = true;
-			} else {
-				Location nextLoc = calculateNextLocation(loc);
-				if (isPathBlocked(nextLoc)) {
-					shouldRemove = true;
-				} else {
-					applyShotEffects(nextLoc);
-					if (checkAndHandleCollision(nextLoc)) {
-						shouldRemove = true;
-					} else {
-						loc = nextLoc;
-						moved = true;
-					}
-				}
+		for (int i = 0; i < 3; i++) {
+			double nextDist = dist + speed;
+			if (nextDist >= range) {
+				return new ShotResult(loc, dist, false);
 			}
+
+			Location nextLoc = calculateNextLocation(loc);
+			if (isPathBlocked(loc, nextLoc)) {
+				return new ShotResult(loc, dist, false);
+			}
+
+			applyShotEffects(nextLoc);
+			if (checkAndHandleCollision(nextLoc)) {
+				return new ShotResult(loc, dist, false);
+			}
+
+			loc = nextLoc;
+			dist = nextDist;
 		}
 
-		return new ShotResult(loc, dist, moved);
+		return new ShotResult(loc, dist, true);
 	}
 
 	private Location calculateNextLocation(Location currentLocation) {
-		return currentLocation.add(currentLocation.getDirection().clone().multiply(speed));
+		return currentLocation.clone().add(currentLocation.getDirection().clone().multiply(speed));
+	}
+
+	private boolean isPathBlocked(Location start, Location end) {
+		if (start.getWorld() == null || end.getWorld() == null || start.getWorld() != end.getWorld()) {
+			return true;
+		}
+
+		if (isPathBlocked(start) || isPathBlocked(end)) {
+			return true;
+		}
+
+		Vector path = end.toVector().subtract(start.toVector());
+		double distance = path.length();
+		return distance > 0 && start.getWorld().rayTraceBlocks(start, path.normalize(), distance, FluidCollisionMode.ALWAYS, true) != null;
 	}
 
 	private boolean isPathBlocked(Location location) {
@@ -170,10 +202,24 @@ public class AirPunch extends AirAbility implements AddonAbility {
 	}
 
 	private boolean checkAndHandleCollision(Location location) {
-		return CollisionDetector.checkEntityCollisions(player, new Sphere(location.toVector(), entityCollisionRadius), entity -> {
+		return CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), entityCollisionRadius), entity -> {
 			DamageHandler.damageEntity(entity, damage, this);
 			return true;
 		});
+	}
+
+	private boolean hasValidTravelSettings() {
+		return Double.isFinite(speed) && speed > 0 && Double.isFinite(range) && range > 0;
+	}
+
+	private boolean hasShotsOutsidePlayerWorld() {
+		for (Shot shot : activeShots) {
+			if (shot.location().getWorld() != player.getWorld()) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	@Override
@@ -196,14 +242,26 @@ public class AirPunch extends AirAbility implements AddonAbility {
 	public void handleCollision(Collision collision) {
 		if (collision.isRemovingFirst()) {
 			Location location = collision.getLocationFirst();
+			Iterator<Shot> iterator = activeShots.iterator();
 
-			locations.remove(location);
+			while (iterator.hasNext()) {
+				if (iterator.next().location().equals(location)) {
+					iterator.remove();
+					break;
+				}
+			}
 		}
 	}
 
 	@Override
 	public List<Location> getLocations() {
-		return new ArrayList<>(locations.keySet());
+		List<Location> locations = new ArrayList<>(activeShots.size());
+
+		for (Shot shot : activeShots) {
+			locations.add(shot.location());
+		}
+
+		return locations;
 	}
 
 	@Override

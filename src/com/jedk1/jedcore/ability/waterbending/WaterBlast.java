@@ -123,7 +123,7 @@ public class WaterBlast extends WaterAbility implements AddonAbility {
 			if (travelled >= 3) {
 				AABB collider = AABB.BlockBounds.at(location).scale(entityCollisionRadius * 2);
 
-				boolean hit = CollisionDetector.checkEntityCollisions(player, collider, (entity) -> {
+				boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), collider, (entity) -> {
 					DamageHandler.damageEntity(entity, damage, ability);
 					return true;
 				});
