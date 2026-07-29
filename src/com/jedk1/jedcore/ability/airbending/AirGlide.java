@@ -18,7 +18,7 @@ public class AirGlide extends AirAbility implements AddonAbility {
 
 	private double fallSpeed;
 	private int particles;
-	private boolean airspout;
+	private boolean allowAirSpout;
 	private long lastCooldown;
 	private boolean progressing;
 	// The player must touch the ground for the cooldown to start if this is true.
@@ -36,7 +36,7 @@ public class AirGlide extends AirAbility implements AddonAbility {
 
 		if (hasAbility(player, AirGlide.class)) {
 			AirGlide ag = getAbility(player, AirGlide.class);
-			ag.remove();
+			ag.stopGliding();
 			return;
 		}
 
@@ -57,7 +57,7 @@ public class AirGlide extends AirAbility implements AddonAbility {
 		speed = config.getDouble("Abilities.Air.AirGlide.Speed");
 		fallSpeed = config.getDouble("Abilities.Air.AirGlide.FallSpeed");
 		particles = config.getInt("Abilities.Air.AirGlide.Particles");
-		airspout = config.getBoolean("Abilities.Air.AirGlide.AllowAirSpout");
+		allowAirSpout = config.getBoolean("Abilities.Air.AirGlide.AllowAirSpout");
 		cooldown  = config.getLong("Abilities.Air.AirGlide.Cooldown");
 		duration  = config.getLong("Abilities.Air.AirGlide.Duration");
 		requireGround = config.getBoolean("Abilities.Air.AirGlide.RequireGround") && cooldown > 0;
@@ -70,13 +70,11 @@ public class AirGlide extends AirAbility implements AddonAbility {
 			update(time);
 		} else {
 			if (player.isDead() || !player.isOnline()) {
-				this.requireGround = false;
 				remove();
 				return;
 			}
 
 			if (CollisionDetector.isOnGround(this.player)) {
-				this.requireGround = false;
 				remove();
 			} else {
 				if (time > lastCooldown + cooldown / 2) {
@@ -90,7 +88,7 @@ public class AirGlide extends AirAbility implements AddonAbility {
 	@SuppressWarnings("deprecation")
 	private void update(long time) {
 		if (this.duration > 0 && time >= this.getStartTime() + this.duration) {
-			remove();
+			stopGliding();
 			return;
 		}
 
@@ -99,24 +97,14 @@ public class AirGlide extends AirAbility implements AddonAbility {
 			return;
 		}
 
-		if (!hasAbility(player, AirGlide.class)) {
-			remove();
-			return;
-		}
-
-		if ((airspout && hasAbility(player, AirSpout.class)) || !hasAirGlide()) {
-			remove();
+		if ((!allowAirSpout && hasAbility(player, AirSpout.class)) || !hasAirGlide()) {
+			stopGliding();
 			return;
 		}
 
 		if (!player.isOnGround()) {
-			Location firstLocation = player.getEyeLocation();
-
-			Vector directionVector = firstLocation.getDirection().normalize();
-			double distanceFromPlayer = speed;
-
-			Vector shootFromPlayer = new Vector(directionVector.getX() * distanceFromPlayer, -fallSpeed, directionVector.getZ() * distanceFromPlayer);
-			firstLocation.add(shootFromPlayer.getX(), shootFromPlayer.getY(), shootFromPlayer.getZ());
+			Vector directionVector = player.getEyeLocation().getDirection().normalize();
+			Vector shootFromPlayer = new Vector(directionVector.getX() * speed, -fallSpeed, directionVector.getZ() * speed);
 
 			GeneralMethods.setVelocity(this, player, shootFromPlayer);
 
@@ -128,6 +116,11 @@ public class AirGlide extends AirAbility implements AddonAbility {
 
 	@Override
 	public void remove() {
+		this.requireGround = false;
+		stopGliding();
+	}
+
+	private void stopGliding() {
 		this.progressing = false;
 		bPlayer.addCooldown(this);
 
@@ -214,11 +207,11 @@ public class AirGlide extends AirAbility implements AddonAbility {
 	}
 
 	public boolean allowsAirSpout() {
-		return airspout;
+		return allowAirSpout;
 	}
 
 	public void setAllowAirSpout(boolean airspout) {
-		this.airspout = airspout;
+		this.allowAirSpout = airspout;
 	}
 
 	public long getDuration() {
