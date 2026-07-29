@@ -153,7 +153,7 @@ public class JedCoreConfig {
 				"DEAD_BUSH",
 				"SEA_PICKLE",
 				"CACTUS_FLOWER",
-				"BERRY_BUSH",
+				"SWEET_BERRY_BUSH",
 				"RED_MUSHROOM",
 				"BROWN_MUSHROOM"
 		));

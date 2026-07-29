@@ -4,6 +4,7 @@ import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.collision.CollisionDetector;
 import com.jedk1.jedcore.collision.Sphere;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
+import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.AirAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
@@ -22,6 +23,7 @@ import org.bukkit.util.Vector;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class AirBlade extends AirAbility implements AddonAbility {
@@ -57,11 +59,18 @@ public class AirBlade extends AirAbility implements AddonAbility {
 		}
 
 		setFields();
+		if (!hasValidTravelSettings()) {
+			return;
+		}
 
 		this.location = player.getEyeLocation().clone();
 		this.direction = player.getEyeLocation().getDirection().clone();
 
 		start();
+		if (!isRemoved() && !hasValidTravelSettings()) {
+			remove();
+			return;
+		}
 		if (!isRemoved())
 			bPlayer.addCooldown(this);
 	}
@@ -131,9 +140,15 @@ public class AirBlade extends AirAbility implements AddonAbility {
 	}
 
 	private boolean moveAndCheckCollision() {
-		location = location.add(direction.multiply(speed));
+		if (!hasValidTravelSettings()) {
+			remove();
+			return false;
+		}
+
+		Vector movement = direction.clone().multiply(speed);
+		location.add(movement);
 		playAirbendingSound(location);
-		travelled += speed;
+		travelled += movement.length();
 		growth += 0.125;
 
 		if (travelled >= range ||
@@ -162,7 +177,7 @@ public class AirBlade extends AirAbility implements AddonAbility {
 
 			if (knockback > 0) {
 				Vector knockDir = entity.getLocation().toVector().subtract(location.toVector()).normalize();
-				entity.setVelocity(entity.getVelocity().add(knockDir.multiply(knockback)));
+				GeneralMethods.setVelocity(this, entity, entity.getVelocity().add(knockDir.multiply(knockback)));
 			}
 
 			remove();
@@ -170,17 +185,25 @@ public class AirBlade extends AirAbility implements AddonAbility {
 		});
 	}
 
+	private boolean hasValidTravelSettings() {
+		return Double.isFinite(speed) && speed > 0 && Double.isFinite(range) && range > 0;
+	}
+
 	private Set<Material> loadCuttableBlocks(List<String> entries) {
 		Set<Material> result = new HashSet<>();
 		for (String entry : entries) {
 			if (entry.startsWith("#")) {
-				String tagKey = entry.substring(1).toLowerCase();
+				String tagKey = entry.substring(1).toLowerCase(Locale.ROOT);
 				NamespacedKey ns = NamespacedKey.minecraft(tagKey);
 				Tag<Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, ns, Material.class);
 				if (tag != null) tag.getValues().forEach(result::add);
 			} else {
 				try {
-					result.add(Material.valueOf(entry.toUpperCase()));
+					String materialName = entry.toUpperCase(Locale.ROOT);
+					if (materialName.equals("BERRY_BUSH")) {
+						materialName = "SWEET_BERRY_BUSH";
+					}
+					result.add(Material.valueOf(materialName));
 				} catch (IllegalArgumentException ignored) {}
 			}
 		}
