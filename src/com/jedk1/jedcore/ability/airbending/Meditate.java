@@ -4,6 +4,7 @@ import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.Element;
+import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.SpiritualAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
@@ -11,12 +12,12 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 public class Meditate extends SpiritualAbility implements AddonAbility {
 
-	private double startHealth;
 	private String unfocusMsg;
 	private long warmup;
 	private int particleDensity;
@@ -52,8 +53,6 @@ public class Meditate extends SpiritualAbility implements AddonAbility {
 		absorptionBoost = config.getInt("Abilities.Air.Meditate.AbsorptionBoost");
 		speedBoost = config.getInt("Abilities.Air.Meditate.SpeedBoost");
 		jumpBoost = config.getInt("Abilities.Air.Meditate.JumpBoost");
-
-		startHealth = player.getHealth();
 	}
 
 	@Override
@@ -64,12 +63,6 @@ public class Meditate extends SpiritualAbility implements AddonAbility {
 		}
 
 		if (!bPlayer.canBendIgnoreCooldowns(this)) {
-			remove();
-			return;
-		}
-
-		if (player.getHealth() < startHealth) {
-			if (lossFocusMessage) player.sendMessage(Element.SPIRITUAL.getColor() + unfocusMsg);
 			remove();
 			return;
 		}
@@ -91,18 +84,34 @@ public class Meditate extends SpiritualAbility implements AddonAbility {
 		}
 	}
 
-	private void givePlayerBuffs() {
-		if (player.hasPotionEffect(PotionEffectType.SPEED)) {
-			player.removePotionEffect(PotionEffectType.SPEED);
+	public static void handleDamage(EntityDamageEvent event) {
+		if (!(event.getEntity() instanceof Player player) || GeneralMethods.isFakeEvent(event)) {
+			return;
 		}
 
+		Meditate meditate = getAbility(player, Meditate.class);
+		if (meditate == null || !hasEffectiveDamage(event)) {
+			return;
+		}
+
+		meditate.loseFocus();
+	}
+
+	@SuppressWarnings("deprecation")
+	private static boolean hasEffectiveDamage(EntityDamageEvent event) {
+		return event.getFinalDamage() > 0
+				|| event.getDamage(EntityDamageEvent.DamageModifier.ABSORPTION) < 0;
+	}
+
+	private void loseFocus() {
+		if (lossFocusMessage) player.sendMessage(Element.SPIRITUAL.getColor() + unfocusMsg);
+		remove();
+	}
+
+	private void givePlayerBuffs() {
 		player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, boostDuration/50, speedBoost - 1));
 
 		JedCore.plugin.getPotionEffectAdapter().applyJumpBoost(player, boostDuration, jumpBoost);
-
-		if (player.hasPotionEffect(PotionEffectType.ABSORPTION)) {
-			player.removePotionEffect(PotionEffectType.ABSORPTION);
-		}
 
 		player.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, boostDuration/50, absorptionBoost - 1));
 	}
@@ -146,14 +155,6 @@ public class Meditate extends SpiritualAbility implements AddonAbility {
 	public String getDescription() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		return "* JedCore Addon *\n" + config.getString("Abilities.Air.Meditate.Description");
-	}
-
-	public double getStartHealth() {
-		return startHealth;
-	}
-
-	public void setStartHealth(double startHealth) {
-		this.startHealth = startHealth;
 	}
 
 	public String getUnfocusMsg() {

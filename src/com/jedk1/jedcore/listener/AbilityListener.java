@@ -81,6 +81,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -112,6 +113,11 @@ public class AbilityListener implements Listener {
 		if (event.getAbility() instanceof AirBreath) {
 			AirBreath.applyAvatarStateModifier(event);
 		}
+	}
+
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+	public void onMeditateDamage(EntityDamageEvent event) {
+		Meditate.handleDamage(event);
 	}
 
 	@EventHandler(priority = EventPriority.LOWEST)

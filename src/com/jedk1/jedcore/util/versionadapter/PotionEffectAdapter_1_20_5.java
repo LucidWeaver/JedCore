@@ -33,9 +33,6 @@ public class PotionEffectAdapter_1_20_5 implements PotionEffectAdapter {
 
     @Override
     public void applyJumpBoost(Player player, int duration, int strength) {
-        if (player.hasPotionEffect(PotionEffectType.getByName("JUMP_BOOST"))) {
-            player.removePotionEffect(PotionEffectType.getByName("JUMP_BOOST"));
-        }
         player.addPotionEffect(new PotionEffect(PotionEffectType.getByName("JUMP_BOOST"), duration / 50, strength - 1));
     }
 
