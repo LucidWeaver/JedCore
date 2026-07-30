@@ -347,6 +347,7 @@ public class JCMethods {
 		JedCore.log.info("JedCore Reloaded.");
 		JedCore.plugin.reloadConfig();
 		JedCore.logDebug = JedCoreConfig.getConfig((World)null).getBoolean("Properties.LogDebug");
+		ThrownEntityTracker.reload();
 		CoreAbility.registerPluginAbilities(JedCore.plugin, "com.jedk1.jedcore.ability");
 		registerDisabledWorlds();
 		registerCombos();

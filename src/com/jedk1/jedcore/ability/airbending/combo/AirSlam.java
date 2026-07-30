@@ -7,9 +7,11 @@ import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.AirAbility;
 import com.projectkorra.projectkorra.ability.ComboAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager.AbilityInformation;
 import com.projectkorra.projectkorra.ability.util.ComboUtil;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.attribute.AttributeCache;
 import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.object.HorizontalVelocityTracker;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -36,6 +38,7 @@ public class AirSlam extends AirAbility implements AddonAbility, ComboAbility {
 
 	private LivingEntity target;
 	private ArrayList<Entity> affectedEntities;
+	private boolean trackingStarted;
 
 	public AirSlam(Player player) {
 		super(player);
@@ -45,22 +48,30 @@ public class AirSlam extends AirAbility implements AddonAbility, ComboAbility {
 		}
 		
 		setFields();
+		recalculateAttributes();
 
 		Entity targetEntity = GeneralMethods.getTargetedEntity(player, range, new ArrayList<>());
 		if (!(targetEntity instanceof LivingEntity)
 				|| RegionProtection.isRegionProtected(this, targetEntity.getLocation())
-				|| ((targetEntity instanceof Player) && Commands.invincible.contains(targetEntity.getName())))
+				|| ((targetEntity instanceof Player) && Commands.invincible.contains(targetEntity.getName()))) {
+			clearAttributeCache();
 			return;
+		}
 
 		this.target = (LivingEntity) targetEntity;
 		this.affectedEntities = new ArrayList<>();
 
 		start();
 
-		if (!isRemoved()) {
-			bPlayer.addCooldown(this);
-			GeneralMethods.setVelocity(this, target, new Vector(0, 2, 0));
+		if (!isStarted()) {
+			if (!isRemoved()) {
+				clearAttributeCache();
+			}
+			return;
 		}
+
+		bPlayer.addCooldown(this);
+		GeneralMethods.setVelocity(this, target, new Vector(0, 2, 0));
 	}
 
 	public void setFields() {
@@ -72,6 +83,13 @@ public class AirSlam extends AirAbility implements AddonAbility, ComboAbility {
 		damage = config.getDouble("Abilities.Air.AirCombo.AirSlam.Damage");
 	}
 
+	private void clearAttributeCache() {
+		for (AttributeCache cache : CoreAbility.getAttributeCache(this).values()) {
+			cache.getInitialValues().remove(this);
+			cache.getCurrentModifications().remove(this);
+		}
+	}
+
 	@Override
 	public void progress() {
 		if (player == null || player.isDead() || !player.isOnline()) {
@@ -79,21 +97,25 @@ public class AirSlam extends AirAbility implements AddonAbility, ComboAbility {
 			return;
 		}
 
-		if (System.currentTimeMillis() > getStartTime() + 50) {
+		long elapsed = System.currentTimeMillis() - getStartTime();
+		if (elapsed > 400) {
+			remove();
+			return;
+		}
+
+		if (elapsed > 50) {
 			Vector dir = player.getLocation().getDirection();
 			GeneralMethods.setVelocity(this, target, new Vector(dir.getX(), 0.05, dir.getZ()).multiply(power));
-			new HorizontalVelocityTracker(target, player, 0L, this);
-			new ThrownEntityTracker(this, target, player, 0L);
+			if (!trackingStarted) {
+				new HorizontalVelocityTracker(target, player, 0L, this);
+				new ThrownEntityTracker(this, target, player, 0L);
+				trackingStarted = true;
+			}
 			target.setFallDistance(0);
 			if (damage > 0 && !affectedEntities.contains(target)) {
 				DamageHandler.damageEntity(target, damage, this);
 				affectedEntities.add(target);
 			}
-		}
-
-		if (System.currentTimeMillis() > getStartTime() + 400) {
-			remove();
-			return;
 		}
 
 		playAirbendingParticles(target.getLocation(), 10);
@@ -106,7 +128,7 @@ public class AirSlam extends AirAbility implements AddonAbility, ComboAbility {
 
 	@Override
 	public Location getLocation() {
-		return target != null ? target.getLocation() : null;
+		return target != null ? target.getLocation() : player != null ? player.getLocation() : null;
 	}
 
 	@Override

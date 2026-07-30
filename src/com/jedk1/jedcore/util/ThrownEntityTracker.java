@@ -16,19 +16,17 @@ public class ThrownEntityTracker {
 
 	public static ConcurrentHashMap<Entity, ThrownEntityTracker> instances = new ConcurrentHashMap<>();
 	public static boolean collisions = JedCore.plugin.getConfig().getBoolean("Properties.MobCollisions.Enabled");
-	private long delay;
+	private final long delay;
 	private final long fireTime;
 	private final Entity entity;
 	private final Player instigator;
-	private Vector thisVelocity;
-	private Ability ability;
+	private final Ability ability;
 
 	public ThrownEntityTracker(Ability ability, Entity e, Player instigator, long delay) {
 		entity = e;
 		this.instigator = instigator;
+		this.ability = ability;
 		fireTime = System.currentTimeMillis();
-		this.delay = delay;
-		thisVelocity = e.getVelocity();
 		this.delay = delay;
 		instances.put(entity, this);
 	}
@@ -43,15 +41,15 @@ public class ThrownEntityTracker {
 			return;
 		}
 
-		thisVelocity = entity.getVelocity().clone();
+		Vector velocity = entity.getVelocity().clone();
 
 		List<Entity> nearby = GeneralMethods.getEntitiesAroundPoint(entity.getLocation(), 2D);
-        nearby.remove(entity);
-        nearby.remove(instigator);
+		nearby.remove(entity);
+		nearby.remove(instigator);
 
-		if (nearby.size() != 0) {
-			entity.setVelocity(thisVelocity.multiply(0.5D));
-			for(Entity e : nearby){
+		if (!nearby.isEmpty()) {
+			entity.setVelocity(velocity.multiply(0.5D));
+			for (Entity e : nearby) {
 				e.setVelocity(entity.getVelocity().multiply(0.25D).add(GeneralMethods.getDirection(entity.getLocation(), e.getLocation()).multiply(2)));
 				if (e instanceof LivingEntity) {
 					DamageHandler.damageEntity(e, 2D, ability);
@@ -66,13 +64,13 @@ public class ThrownEntityTracker {
 	}
 
 	public static void updateAll() {
-		for (Entity entity : instances.keySet()) {
-			if (entity == null) {
-				instances.remove(entity);
-				continue;
-			}
-			instances.get(entity).update();
+		for (ThrownEntityTracker tracker : instances.values()) {
+			tracker.update();
 		}
+	}
+
+	public static void reload() {
+		collisions = JedCore.plugin.getConfig().getBoolean("Properties.MobCollisions.Enabled");
 	}
 
 	public void remove() {
@@ -80,9 +78,7 @@ public class ThrownEntityTracker {
 	}
 
 	public static void remove(Entity entity) {
-		if (instances.containsKey(entity)) {
-			instances.remove(entity);
-		}
+		instances.remove(entity);
 	}
 	
 	public static void removeAll() {
