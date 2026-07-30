@@ -239,6 +239,8 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Air.SonicBlast.Cooldown", 6000);
 		config.addDefault("Abilities.Air.SonicBlast.EntityCollisionRadius", 1.3);
 		config.addDefault("Abilities.Air.SonicBlast.AbilityCollisionRadius", 1.3);
+		config.addDefault("Abilities.Air.SonicBlast.Collisions.Enabled", true);
+		config.addDefault("Abilities.Air.SonicBlast.Collisions.Group", Arrays.asList("Small"));
 		config.addDefault("Abilities.Air.SonicBlast.Range", 20);
 		config.addDefault("Abilities.Air.SonicBlast.ChargeSwapping", true);
 		config.addDefault("Abilities.Air.SonicBlast.Sound.Name", "ENTITY_GENERIC_EXPLODE");
@@ -365,6 +367,8 @@ public class JedCoreConfig {
 //		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Allow", true);
 //		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Velocity", 1.0);
 		config.addDefault("Abilities.Earth.EarthShard.AbilityCollisionRadius", 2.0);
+		config.addDefault("Abilities.Earth.EarthShard.Collisions.Enabled", true);
+		config.addDefault("Abilities.Earth.EarthShard.Collisions.Group", Arrays.asList("Small"));
 		config.addDefault("Abilities.Earth.EarthShard.EntityCollisionRadius", 1.4);
 		
 		config.addDefault("Abilities.Earth.EarthSurf.Enabled", true);
@@ -644,6 +648,8 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Fire.Combustion.RegenTime", 10000);
 		config.addDefault("Abilities.Fire.Combustion.EntityCollisionRadius", 1.3);
 		config.addDefault("Abilities.Fire.Combustion.AbilityCollisionRadius", 1.3);
+		config.addDefault("Abilities.Fire.Combustion.Collisions.Enabled", true);
+		config.addDefault("Abilities.Fire.Combustion.Collisions.Group", Arrays.asList("Ignore"));
 		config.addDefault("Abilities.Fire.Combustion.DamageBlocks", true);
 		config.addDefault("Abilities.Fire.Combustion.RegenBlocks", true);
 		config.addDefault("Abilities.Fire.Combustion.WaitForRegen", true);
@@ -662,6 +668,8 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Fire.Discharge.SlotSwapping", false);
 		config.addDefault("Abilities.Fire.Discharge.EntityCollisionRadius", 1.0);
 		config.addDefault("Abilities.Fire.Discharge.AbilityCollisionRadius", 1.0);
+		config.addDefault("Abilities.Fire.Discharge.Collisions.Enabled", true);
+		config.addDefault("Abilities.Fire.Discharge.Collisions.Group", Arrays.asList("Small"));
 		config.addDefault("Abilities.Fire.Discharge.Sound.Volume", 0.6);
 		config.addDefault("Abilities.Fire.Discharge.Sound.Interval", 6);
 		config.addDefault("Abilities.Fire.Discharge.Stun.Chance", 0.01);
@@ -1030,6 +1038,8 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Chi.DaggerThrow.RequireArrows", false);
 		config.addDefault("Abilities.Chi.DaggerThrow.AllowPickup", false);
 		config.addDefault("Abilities.Chi.DaggerThrow.AbilityCollisionRadius", 0.5);
+		config.addDefault("Abilities.Chi.DaggerThrow.Collisions.Enabled", true);
+		config.addDefault("Abilities.Chi.DaggerThrow.Collisions.Group", Arrays.asList("Small"));
 		config.addDefault("Abilities.Chi.DaggerThrow.Interactions.WaterSpout.Enabled", true);
 		config.addDefault("Abilities.Chi.DaggerThrow.Interactions.WaterSpout.Cooldown", 1000);
 		config.addDefault("Abilities.Chi.DaggerThrow.Interactions.WaterSpout.HitsRequired", 1);

@@ -1,6 +1,8 @@
 package com.jedk1.jedcore;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.*;
 
 import com.google.common.reflect.ClassPath;
@@ -93,6 +95,8 @@ public class JedCore extends JavaPlugin {
 			return;
 		}
 
+		List<CollisionInitializer<?>> initializers = new ArrayList<>();
+
 		try {
 			ClassPath cp = ClassPath.from(this.getClassLoader());
 
@@ -103,14 +107,37 @@ public class JedCore extends JavaPlugin {
 
 					if (abilityClass == null) continue;
 
-					CollisionInitializer initializer = new CollisionInitializer<>(abilityClass);
-					initializer.initialize();
+					initializers.add(new CollisionInitializer<>(abilityClass));
 				} catch (Exception e) {
 
 				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+
+		for (CollisionInitializer<?> initializer : initializers) {
+			try {
+				initializer.initializePrimaryGroups();
+			} catch (Exception e) {
+
+			}
+		}
+
+		for (CollisionInitializer<?> initializer : initializers) {
+			try {
+				initializer.initializeSecondaryGroups();
+			} catch (Exception e) {
+
+			}
+		}
+
+		for (CollisionInitializer<?> initializer : initializers) {
+			try {
+				initializer.initializeExplicitCollisions();
+			} catch (Exception e) {
+
+			}
 		}
 	}
 	

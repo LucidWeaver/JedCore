@@ -9,6 +9,7 @@ import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.AirAbility;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -40,7 +41,7 @@ public class SonicBlast extends AirAbility implements AddonAbility {
 	private double entityCollisionRadius;
 	@Attribute(Attribute.COOLDOWN)
 	private long cooldown;
-	@Attribute("WarmUp")
+	@Attribute(Attribute.CHARGE_DURATION)
 	private long warmup;
 
 	public SonicBlast(Player player) {
@@ -71,7 +72,7 @@ public class SonicBlast extends AirAbility implements AddonAbility {
 			sound = Sound.valueOf(config.getString("Abilities.Air.SonicBlast.Sound.Name"));
 		} catch (final IllegalArgumentException exception) {
 			sound = Sound.ENTITY_GENERIC_EXPLODE;
-			JedCore.log.warning("Your current value for 'Properties.Air.Sound.Sound' is not valid.");
+			JedCore.log.warning("Your current value for 'Abilities.Air.SonicBlast.Sound.Name' is not valid.");
 		}
 	}
 
@@ -132,16 +133,11 @@ public class SonicBlast extends AirAbility implements AddonAbility {
 			location = origin.clone();
 		}
 
-		return isTransparent(location.getBlock());
+		return isTransparent(location.getBlock()) && !RegionProtection.isRegionProtected(this, location);
 	}
 
 	private void advanceLocation() {
 		travelled++;
-
-		if (location == null) {
-			Location origin = player.getEyeLocation().clone();
-			location = origin.clone();
-		}
 
 		for (int i = 0; i < 5; i++) {
 			for (int angle = 0; angle < 360; angle += 20) {
@@ -152,6 +148,10 @@ public class SonicBlast extends AirAbility implements AddonAbility {
 			}
 
 			boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), entityCollisionRadius), entity -> {
+				if (RegionProtection.isRegionProtected(this, entity.getLocation())) {
+					return true;
+				}
+
 				DamageHandler.damageEntity(entity, damage, this);
 				LivingEntity lE = (LivingEntity) entity;
 
