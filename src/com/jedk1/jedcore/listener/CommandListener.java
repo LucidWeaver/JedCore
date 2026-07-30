@@ -2,6 +2,7 @@ package com.jedk1.jedcore.listener;
 
 import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.command.JedCoreCommand;
+import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.event.PKCommandEvent;
 import com.jedk1.jedcore.event.PKCommandEvent.CommandType;
 import com.projectkorra.projectkorra.command.PKCommand;
@@ -66,6 +67,21 @@ public class CommandListener implements Listener {
 					}
 					if (event.getType().equals(CommandType.VERSION) && event.getSender().hasPermission("bending.command.version")) {
 						JedCoreCommand.sendBuildInfo(event.getSender());
+					}
+					if (event.getType().equals(CommandType.HELP)
+							&& event.getSender().hasPermission("bending.command.help")
+							&& event.getArgs().length == 3
+							&& event.getArgs()[2].equalsIgnoreCase("EarthArmor")) {
+						String path = "Abilities.Earth.EarthArmor";
+						if (!JedCoreConfig.getConfig(event.getSender()).getBoolean(path + ".Enabled")) {
+							return;
+						}
+
+						String description = JedCoreConfig.getConfig(event.getSender()).getString(path + ".Description");
+						if (description != null && !description.isBlank()) {
+							event.getSender().sendMessage(ChatColor.DARK_AQUA + "* JedCore Addon *");
+							event.getSender().sendMessage(ChatColor.GREEN + description);
+						}
 					}
 				}
 			}

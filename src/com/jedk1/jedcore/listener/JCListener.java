@@ -6,6 +6,7 @@ import com.jedk1.jedcore.ability.chiblocking.Backstab;
 import com.jedk1.jedcore.ability.chiblocking.DaggerThrow;
 import com.jedk1.jedcore.ability.earthbending.EarthSurf;
 import com.jedk1.jedcore.ability.earthbending.LavaDisc;
+import com.jedk1.jedcore.ability.earthbending.MetalArmor;
 import com.jedk1.jedcore.ability.earthbending.MetalFragments;
 import com.jedk1.jedcore.ability.earthbending.MetalShred;
 import com.jedk1.jedcore.ability.earthbending.MudSurge;
@@ -20,7 +21,9 @@ import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.ProjectKorra;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.IceAbility;
+import com.projectkorra.projectkorra.earthbending.EarthArmor;
 import com.projectkorra.projectkorra.earthbending.lava.LavaFlow;
+import com.projectkorra.projectkorra.event.AbilityEndEvent;
 import com.projectkorra.projectkorra.event.AbilityStartEvent;
 import com.projectkorra.projectkorra.event.BendingReloadEvent;
 import com.projectkorra.projectkorra.event.HorizontalVelocityChangeEvent;
@@ -78,6 +81,25 @@ public class JCListener implements Listener {
 			if (regrowth.getType() == Material.SNOW && TempBlock.isTempBlock(regrowth.getBlock())) {
 				event.setCancelled(true);
 			}
+		} else if (event.getAbility() instanceof EarthArmor earthArmor) {
+			Player player = earthArmor.getPlayer();
+			new BukkitRunnable() {
+				public void run() {
+					new MetalArmor(player, earthArmor);
+				}
+			}.runTaskLater(JedCore.plugin, 1);
+		}
+	}
+
+	@EventHandler
+	public void onAbilityEnd(AbilityEndEvent event) {
+		if (!(event.getAbility() instanceof EarthArmor earthArmor)) {
+			return;
+		}
+
+		MetalArmor metalArmor = CoreAbility.getAbility(earthArmor.getPlayer(), MetalArmor.class);
+		if (metalArmor != null && metalArmor.isTracking(earthArmor)) {
+			metalArmor.remove();
 		}
 	}
 
@@ -112,6 +134,18 @@ public class JCListener implements Listener {
 					return;
 				}
 			}
+		}
+	}
+
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+	public void onMetalArmorDamage(EntityDamageEvent event) {
+		if (!(event.getEntity() instanceof Player player)) {
+			return;
+		}
+
+		MetalArmor metalArmor = CoreAbility.getAbility(player, MetalArmor.class);
+		if (metalArmor != null) {
+			metalArmor.updateGoldHearts(event);
 		}
 	}
 

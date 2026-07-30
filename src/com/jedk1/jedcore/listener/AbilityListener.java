@@ -20,7 +20,6 @@ import com.jedk1.jedcore.ability.earthbending.LavaDisc;
 import com.jedk1.jedcore.ability.earthbending.LavaFlux;
 import com.jedk1.jedcore.ability.earthbending.LavaThrow;
 import com.jedk1.jedcore.ability.earthbending.MagnetShield;
-import com.jedk1.jedcore.ability.earthbending.MetalArmor;
 import com.jedk1.jedcore.ability.earthbending.MetalFragments;
 import com.jedk1.jedcore.ability.earthbending.MetalHook;
 import com.jedk1.jedcore.ability.earthbending.MetalShred;
@@ -60,7 +59,6 @@ import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.ability.util.MultiAbilityManager;
 import com.projectkorra.projectkorra.event.AbilityRecalculateAttributeEvent;
 import com.projectkorra.projectkorra.airbending.Suffocate;
-import com.projectkorra.projectkorra.earthbending.EarthArmor;
 import com.projectkorra.projectkorra.earthbending.Shockwave;
 import com.projectkorra.projectkorra.earthbending.lava.LavaFlow;
 import com.projectkorra.projectkorra.firebending.FireJet;
@@ -279,9 +277,6 @@ public class AbilityListener implements Listener {
 			if (coreAbil instanceof EarthAbility && bPlayer.isElementToggled(Element.EARTH)) {
 				if (GeneralMethods.isWeapon(player.getInventory().getItemInMainHand().getType()) && !ProjectKorra.plugin.getConfig().getBoolean("Properties.Earth.CanBendWithWeapons")) {
 					return;
-				}
-				if (abilClass.equals(EarthArmor.class)) {
-					new MetalArmor(player);
 				}
 				if (abilClass.equals(EarthLine.class)) {
 					EarthLine.shootLine(player);

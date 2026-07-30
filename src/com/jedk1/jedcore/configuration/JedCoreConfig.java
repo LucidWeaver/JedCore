@@ -265,11 +265,87 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Air.AirCombo.SwiftStream.Combination", Arrays.asList("Flight:SHIFT_DOWN", "Flight:SHIFT_UP", "Flight:SHIFT_DOWN", "Flight:SHIFT_UP"));
 		config.addDefault("Abilities.Air.AirCombo.SwiftStream.Instructions", "Flight (Double tap sneak)");
 		
-		config.addDefault("Abilities.Earth.EarthArmor.Enabled", true);
-		config.addDefault("Abilities.Earth.EarthArmor.Description", "If the block is metal, then you will get metal armor!");
-		config.addDefault("Abilities.Earth.EarthArmor.Resistance.Strength", 2);
-		config.addDefault("Abilities.Earth.EarthArmor.Resistance.Duration", 4000);
-		config.addDefault("Abilities.Earth.EarthArmor.UseIronArmor", false);
+		String earthArmorPath = "Abilities.Earth.EarthArmor";
+		String oldUseIronArmorPath = earthArmorPath + ".UseIronArmor";
+		String useMetalArmorPath = earthArmorPath + ".UseMetalArmor";
+		String resistancePath = earthArmorPath + ".Resistance";
+		String resistanceDurationPath = resistancePath + ".Duration";
+		if (config.isSet(oldUseIronArmorPath)) {
+			if (!config.isSet(useMetalArmorPath + ".Enabled")) {
+				config.set(useMetalArmorPath + ".Enabled", config.getBoolean(oldUseIronArmorPath));
+			}
+			config.set(oldUseIronArmorPath, null);
+		}
+		if (config.isSet(resistanceDurationPath) && !config.isConfigurationSection(resistanceDurationPath)) {
+			int oldResistanceDuration = config.getInt(resistanceDurationPath);
+			config.set(resistanceDurationPath, null);
+			config.set(resistanceDurationPath + ".Enabled", false);
+			config.set(resistanceDurationPath + ".Value", oldResistanceDuration);
+		}
+
+		config.addDefault(earthArmorPath + ".Enabled", true);
+		config.addDefault(earthArmorPath + ".Description", "Using a metal source with EarthArmor grants Resistance and stronger armor matching the metal.");
+		config.addDefault(resistancePath + ".Enabled", true);
+		config.addDefault(resistancePath + ".Strength", 2);
+		config.addDefault(resistanceDurationPath + ".Enabled", false);
+		config.addDefault(resistanceDurationPath + ".Value", 4000);
+		config.addDefault(useMetalArmorPath + ".Enabled", true);
+		config.addDefault(useMetalArmorPath + ".CopperArmor", Arrays.asList(
+				"#copper_ores",
+				"COPPER_BLOCK",
+				"CUT_COPPER",
+				"CUT_COPPER_SLAB",
+				"CUT_COPPER_STAIRS",
+				"EXPOSED_COPPER",
+				"EXPOSED_CUT_COPPER",
+				"EXPOSED_CUT_COPPER_SLAB",
+				"EXPOSED_CUT_COPPER_STAIRS",
+				"OXIDIZED_COPPER",
+				"OXIDIZED_CUT_COPPER",
+				"OXIDIZED_CUT_COPPER_SLAB",
+				"OXIDIZED_CUT_COPPER_STAIRS",
+				"RAW_COPPER_BLOCK",
+				"WAXED_COPPER_BLOCK",
+				"WAXED_CUT_COPPER",
+				"WAXED_CUT_COPPER_SLAB",
+				"WAXED_CUT_COPPER_STAIRS",
+				"WAXED_EXPOSED_COPPER",
+				"WAXED_EXPOSED_CUT_COPPER",
+				"WAXED_EXPOSED_CUT_COPPER_SLAB",
+				"WAXED_EXPOSED_CUT_COPPER_STAIRS",
+				"WAXED_OXIDIZED_COPPER",
+				"WAXED_OXIDIZED_CUT_COPPER",
+				"WAXED_OXIDIZED_CUT_COPPER_SLAB",
+				"WAXED_OXIDIZED_CUT_COPPER_STAIRS",
+				"WAXED_WEATHERED_COPPER",
+				"WAXED_WEATHERED_CUT_COPPER",
+				"WAXED_WEATHERED_CUT_COPPER_SLAB",
+				"WAXED_WEATHERED_CUT_COPPER_STAIRS",
+				"WEATHERED_COPPER",
+				"WEATHERED_CUT_COPPER",
+				"WEATHERED_CUT_COPPER_SLAB",
+				"WEATHERED_CUT_COPPER_STAIRS"
+		));
+		config.addDefault(useMetalArmorPath + ".IronArmor", Arrays.asList(
+				"#iron_ores",
+				"RAW_IRON_BLOCK",
+				"IRON_BLOCK"
+		));
+		config.addDefault(useMetalArmorPath + ".GoldArmor", Arrays.asList(
+				"#gold_ores",
+				"RAW_GOLD_BLOCK",
+				"GILDED_BLACKSTONE",
+				"GOLD_BLOCK"
+		));
+		config.addDefault(useMetalArmorPath + ".NetheriteArmor", Arrays.asList(
+				"NETHERITE_BLOCK"
+		));
+		config.addDefault(useMetalArmorPath + ".DiamondArmor", new ArrayList<String>());
+		config.addDefault(useMetalArmorPath + ".ChainArmor", Arrays.asList(
+				"CHAIN",
+				"NETHER_QUARTZ_ORE",
+				"QUARTZ_BLOCK"
+		));
 		
 		config.addDefault("Abilities.Earth.EarthKick.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthKick.Description", "This move enables an earthbender to create a "

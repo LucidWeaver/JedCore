@@ -7,51 +7,75 @@ import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.earthbending.EarthArmor;
 import com.projectkorra.projectkorra.util.TempArmor;
-import com.projectkorra.projectkorra.util.TempPotionEffect;
-import org.bukkit.Color;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.LeatherArmorMeta;
 import org.bukkit.potion.PotionEffect;
 
-import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class MetalArmor extends EarthAbility implements AddonAbility {
 
-	private static final int GOLD_BLOCK_COLOR = 0xF2F204;
-	private static final List<Integer> METAL_COLORS = Arrays.asList(
-			0xa39d91, 0xf4f4f4, 0xa2a38f, 0xF2F204, 0xb75656, 0xfff4f4
-	);
-
-	private boolean useIronArmor;
+	private boolean useMetalArmor;
+	private boolean resistanceEnabled;
+	private boolean resistanceDurationEnabled;
 	private int resistStrength;
 	private int resistDuration;
+	private boolean armorApplied;
+	private boolean resistanceApplied;
+	private long resistanceEndTime;
+	private long previousResistanceStartTick;
+	private EarthArmor earthArmor;
+	private Map<ArmorType, List<String>> armorMaterials;
+	private PotionEffect previousResistance;
+	private PotionEffect resistance;
 
 	public MetalArmor(Player player) {
 		super(player);
+		initialize(player == null ? null : CoreAbility.getAbility(player, EarthArmor.class));
+	}
 
-		if (bPlayer == null || !bPlayer.canBendIgnoreCooldowns(CoreAbility.getAbility(EarthArmor.class)) || !bPlayer.canMetalbend()) {
+	public MetalArmor(Player player, EarthArmor earthArmor) {
+		super(player);
+		initialize(earthArmor);
+	}
+
+	private void initialize(EarthArmor earthArmor) {
+		if (bPlayer == null || earthArmor == null || earthArmor.isRemoved() || !bPlayer.canMetalbend()) {
 			return;
 		}
 
-		if (!CoreAbility.hasAbility(player, EarthArmor.class)) {
+		if (CoreAbility.getAbility(player, EarthArmor.class) != earthArmor || CoreAbility.hasAbility(player, MetalArmor.class)) {
 			return;
 		}
 
+		this.earthArmor = earthArmor;
 		setFields();
 		start();
 	}
 
 	private void setFields() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
+		String path = "Abilities.Earth.EarthArmor.UseMetalArmor";
 
-		useIronArmor = config.getBoolean("Abilities.Earth.EarthArmor.UseIronArmor");
+		useMetalArmor = config.getBoolean(path + ".Enabled");
+		resistanceEnabled = config.getBoolean("Abilities.Earth.EarthArmor.Resistance.Enabled");
+		resistanceDurationEnabled = config.getBoolean("Abilities.Earth.EarthArmor.Resistance.Duration.Enabled");
 		resistStrength = config.getInt("Abilities.Earth.EarthArmor.Resistance.Strength");
-		resistDuration = config.getInt("Abilities.Earth.EarthArmor.Resistance.Duration");
+		resistDuration = config.getInt("Abilities.Earth.EarthArmor.Resistance.Duration.Value");
+		armorMaterials = new EnumMap<>(ArmorType.class);
+		for (ArmorType armorType : ArmorType.values()) {
+			armorMaterials.put(armorType, config.getStringList(path + "." + armorType.configKey));
+		}
 	}
 
 	@Override
@@ -61,71 +85,250 @@ public class MetalArmor extends EarthAbility implements AddonAbility {
 			return;
 		}
 
-		if (!CoreAbility.hasAbility(player, EarthArmor.class)) {
+		if (earthArmor == null || earthArmor.isRemoved() || CoreAbility.getAbility(player, EarthArmor.class) != earthArmor) {
 			remove();
 			return;
 		}
 
-		EarthArmor ea = CoreAbility.getAbility(player, EarthArmor.class);
 		if (!bPlayer.isToggled()) {
 			remove();
-			ea.remove();
+			earthArmor.remove();
 			return;
 		}
 
-		if (ea.isFormed()) {
-			if (isMetalHelmet()) {
-				ItemStack[] armors = { new ItemStack(Material.CHAINMAIL_BOOTS, 1),
-						new ItemStack(Material.CHAINMAIL_LEGGINGS, 1),
-						new ItemStack(Material.CHAINMAIL_CHESTPLATE, 1),
-						new ItemStack(Material.CHAINMAIL_HELMET, 1) };
+		if (!earthArmor.isFormed()) {
+			return;
+		}
 
-				if(useIronArmor){
-					armors = new ItemStack[]{ new ItemStack(Material.IRON_BOOTS, 1),
-							new ItemStack(Material.IRON_LEGGINGS, 1),
-							new ItemStack(Material.IRON_CHESTPLATE, 1),
-							new ItemStack(Material.IRON_HELMET, 1) };
-				}
-
-				if(useIronArmor && getHelmetColor().equals(Color.fromRGB(GOLD_BLOCK_COLOR))) {
-					armors = new ItemStack[]{ new ItemStack(Material.GOLDEN_BOOTS, 1),
-							new ItemStack(Material.GOLDEN_LEGGINGS, 1),
-							new ItemStack(Material.GOLDEN_CHESTPLATE, 1),
-							new ItemStack(Material.GOLDEN_HELMET, 1) };
-				}
-
-				player.getInventory().setArmorContents(armors);
-
-				PotionEffect resistance = JedCore.plugin.getPotionEffectAdapter().getResistanceEffect(resistDuration, resistStrength);
-				new TempPotionEffect(player, resistance);
+		if (!armorApplied) {
+			if (!EarthAbility.isMetal(earthArmor.getHeadMaterial())) {
+				remove();
+				return;
 			}
 
-			remove();
+			TempArmor tempArmor = getEarthArmorTempArmor();
+			if (tempArmor == null) {
+				remove();
+				return;
+			}
+
+			tempArmor.setArmor(createArmor(earthArmor.getHeadMaterial()));
+			armorApplied = true;
+			if (resistanceEnabled && (!resistanceDurationEnabled || resistDuration > 0)) {
+				applyResistance();
+			}
+		}
+
+		if (!resistanceApplied) {
+			return;
+		}
+
+		if (resistanceDurationEnabled && System.currentTimeMillis() >= resistanceEndTime) {
+			clearResistance();
+			return;
+		}
+
+		if (player.getPotionEffect(resistance.getType()) == null) {
+			previousResistance = null;
+			resistanceApplied = player.addPotionEffect(resistance);
 		}
 	}
 
-	private boolean isMetalHelmet() {
-		Color color = getHelmetColor();
-
-		return METAL_COLORS.contains(color.asRGB());
+	private void applyResistance() {
+		PotionEffect template = JedCore.plugin.getPotionEffectAdapter().getResistanceEffect(50, resistStrength);
+		int duration = resistanceDurationEnabled ? Math.max(1, resistDuration / 50) : PotionEffect.INFINITE_DURATION;
+		resistance = new PotionEffect(
+				template.getType(),
+				duration,
+				template.getAmplifier(),
+				template.isAmbient(),
+				template.hasParticles(),
+				template.hasIcon()
+		);
+		previousResistance = player.getPotionEffect(resistance.getType());
+		previousResistanceStartTick = CoreAbility.getCurrentTick();
+		if (previousResistance != null) {
+			player.removePotionEffect(resistance.getType());
+		}
+		resistanceApplied = player.addPotionEffect(resistance);
+		if (!resistanceApplied) {
+			restorePreviousResistance();
+			previousResistance = null;
+			return;
+		}
+		if (resistanceDurationEnabled) {
+			resistanceEndTime = System.currentTimeMillis() + resistDuration;
+		}
 	}
 
-	private Color getHelmetColor() {
-		if (!TempArmor.hasTempArmor(player)) {
-			return Color.BLACK;
+	private void clearResistance() {
+		if (!resistanceApplied || resistance == null || player == null) {
+			return;
 		}
 
-		ItemStack helm = player.getInventory().getHelmet();
-		if (helm.getType() != Material.LEATHER_HELMET) {
-			return Color.BLACK;
+		PotionEffect activeResistance = player.getPotionEffect(resistance.getType());
+		if (activeResistance == null || isManagedResistance(activeResistance)) {
+			player.removePotionEffect(resistance.getType());
+			restorePreviousResistance();
+		} else {
+			player.removePotionEffect(resistance.getType());
+			player.addPotionEffect(activeResistance);
 		}
 
-		LeatherArmorMeta meta = (LeatherArmorMeta)helm.getItemMeta();
-		if (meta == null) {
-			return Color.BLACK;
+		resistanceApplied = false;
+		previousResistance = null;
+		resistance = null;
+	}
+
+	private boolean isManagedResistance(PotionEffect effect) {
+		return effect.getAmplifier() == resistance.getAmplifier()
+				&& effect.isAmbient() == resistance.isAmbient()
+				&& effect.hasParticles() == resistance.hasParticles()
+				&& effect.hasIcon() == resistance.hasIcon()
+				&& (resistance.isInfinite() ? effect.isInfinite() : effect.getDuration() <= resistance.getDuration());
+	}
+
+	private void restorePreviousResistance() {
+		if (previousResistance == null) {
+			return;
 		}
 
-		return meta.getColor();
+		if (previousResistance.isInfinite()) {
+			player.addPotionEffect(previousResistance);
+			return;
+		}
+
+		long elapsedTicks = Math.max(0, CoreAbility.getCurrentTick() - previousResistanceStartTick);
+		long remainingTicks = previousResistance.getDuration() - elapsedTicks;
+		if (remainingTicks <= 0) {
+			return;
+		}
+
+		PotionEffect restoredResistance = new PotionEffect(
+				previousResistance.getType(),
+				(int)Math.min(Integer.MAX_VALUE, remainingTicks),
+				previousResistance.getAmplifier(),
+				previousResistance.isAmbient(),
+				previousResistance.hasParticles(),
+				previousResistance.hasIcon()
+		);
+		player.addPotionEffect(restoredResistance);
+	}
+
+	@SuppressWarnings("deprecation")
+	public void updateGoldHearts(EntityDamageEvent event) {
+		if (!armorApplied
+				|| earthArmor == null
+				|| earthArmor.isRemoved()
+				|| event.getEntity() != player
+				|| !event.isApplicable(EntityDamageEvent.DamageModifier.ABSORPTION)) {
+			return;
+		}
+
+		double absorptionDamage = event.getDamage(EntityDamageEvent.DamageModifier.ABSORPTION);
+		if (absorptionDamage < 0) {
+			earthArmor.setGoldHearts(Math.max(0, player.getAbsorptionAmount() + absorptionDamage));
+		}
+	}
+
+	public boolean isTracking(EarthArmor earthArmor) {
+		return this.earthArmor == earthArmor;
+	}
+
+	private ItemStack[] createArmor(Material source) {
+		ArmorType armorType = getArmorType(source);
+		ItemStack[] armor = createArmorIfAvailable(armorType.materialPrefix);
+		if (armor != null) {
+			return armor;
+		}
+
+		if (armorType == ArmorType.COPPER) {
+			armor = createArmorIfAvailable(ArmorType.IRON.materialPrefix);
+			if (armor != null) {
+				return armor;
+			}
+		}
+
+		return createArmor(
+				Material.CHAINMAIL_BOOTS,
+				Material.CHAINMAIL_LEGGINGS,
+				Material.CHAINMAIL_CHESTPLATE,
+				Material.CHAINMAIL_HELMET
+		);
+	}
+
+	private ArmorType getArmorType(Material source) {
+		if (!useMetalArmor) {
+			return ArmorType.CHAIN;
+		}
+
+		for (ArmorType armorType : ArmorType.values()) {
+			if (matchesMaterial(source, armorMaterials.get(armorType))) {
+				return armorType;
+			}
+		}
+
+		return ArmorType.CHAIN;
+	}
+
+	private boolean matchesMaterial(Material source, List<String> entries) {
+		for (String entry : entries) {
+			if (entry == null) {
+				continue;
+			}
+
+			String value = entry.trim();
+			if (value.isEmpty()) {
+				continue;
+			}
+
+			if (value.startsWith("#")) {
+				NamespacedKey key = NamespacedKey.fromString(value.substring(1).toLowerCase(Locale.ROOT));
+				if (key == null) {
+					continue;
+				}
+
+				Tag<Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, key, Material.class);
+				if (tag != null && tag.isTagged(source)) {
+					return true;
+				}
+			} else if (source.name().equalsIgnoreCase(value)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private ItemStack[] createArmorIfAvailable(String materialPrefix) {
+		Material bootsMaterial = Material.getMaterial(materialPrefix + "_BOOTS");
+		Material leggingsMaterial = Material.getMaterial(materialPrefix + "_LEGGINGS");
+		Material chestplateMaterial = Material.getMaterial(materialPrefix + "_CHESTPLATE");
+		Material helmetMaterial = Material.getMaterial(materialPrefix + "_HELMET");
+		if (bootsMaterial == null || leggingsMaterial == null || chestplateMaterial == null || helmetMaterial == null) {
+			return null;
+		}
+
+		return createArmor(bootsMaterial, leggingsMaterial, chestplateMaterial, helmetMaterial);
+	}
+
+	private ItemStack[] createArmor(Material boots, Material leggings, Material chestplate, Material helmet) {
+		return new ItemStack[] {
+				new ItemStack(boots),
+				new ItemStack(leggings),
+				new ItemStack(chestplate),
+				new ItemStack(helmet)
+		};
+	}
+
+	private TempArmor getEarthArmorTempArmor() {
+		for (TempArmor tempArmor : TempArmor.getTempArmorList(player)) {
+			if (tempArmor.getAbility() == earthArmor) {
+				return tempArmor;
+			}
+		}
+
+		return null;
 	}
 
 	@Override
@@ -170,15 +373,16 @@ public class MetalArmor extends EarthAbility implements AddonAbility {
 
 	@Override
 	public String getDescription() {
-		return null;
+		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
+		return "* JedCore Addon *\n" + config.getString("Abilities.Earth.EarthArmor.Description");
 	}
 
-	public boolean isUseIronArmor() {
-		return useIronArmor;
+	public boolean isUseMetalArmor() {
+		return useMetalArmor;
 	}
 
-	public void setUseIronArmor(boolean useIronArmor) {
-		this.useIronArmor = useIronArmor;
+	public void setUseMetalArmor(boolean useMetalArmor) {
+		this.useMetalArmor = useMetalArmor;
 	}
 
 	public int getResistStrength() {
@@ -198,6 +402,16 @@ public class MetalArmor extends EarthAbility implements AddonAbility {
 	}
 
 	@Override
+	public void remove() {
+		if (isRemoved()) {
+			return;
+		}
+
+		clearResistance();
+		super.remove();
+	}
+
+	@Override
 	public void load() {}
 
 	@Override
@@ -207,5 +421,22 @@ public class MetalArmor extends EarthAbility implements AddonAbility {
 	public boolean isEnabled() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		return config.getBoolean("Abilities.Earth.EarthArmor.Enabled");
+	}
+
+	private enum ArmorType {
+		COPPER("CopperArmor", "COPPER"),
+		IRON("IronArmor", "IRON"),
+		GOLD("GoldArmor", "GOLDEN"),
+		NETHERITE("NetheriteArmor", "NETHERITE"),
+		DIAMOND("DiamondArmor", "DIAMOND"),
+		CHAIN("ChainArmor", "CHAINMAIL");
+
+		private final String configKey;
+		private final String materialPrefix;
+
+		ArmorType(String configKey, String materialPrefix) {
+			this.configKey = configKey;
+			this.materialPrefix = materialPrefix;
+		}
 	}
 }
