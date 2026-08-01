@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.UUID;
 
 public class JedCoreCommand extends PKCommand {
-	private static final String DOWNLOAD_URL = "https://github.com/CozmycDev/JedCore";
+	private static final String DOWNLOAD_URL = "https://github.com/LucidWeaver/JedCore";
+	private static final String PREVIOUS_MAINTAINERS = "Aztlon, CozmycDev";
+	private static final String CONTRIBUTORS = "0ct0ber, chandlerpl, Dreig-Michihi, EtherealMC-Bit, greenwolf5, Manu585, Nysseus, PhanaticD, PrimordialMoros, Simplicitee, smmy-ohd, Snowy2174, StrangeOne101";
 
 	public JedCoreCommand() {
 		super("jedcore", "/bending jedcore", "This command will show the statistics and version of JedCore.", new String[] { "jedcore", "jc" });
@@ -38,7 +40,9 @@ public class JedCoreCommand extends PKCommand {
 		sender.sendMessage(ChatColor.GRAY + "Running JedCore Build: " + ChatColor.RED + JedCore.plugin.getDescription().getVersion());
 		sender.sendMessage(ChatColor.GRAY + "Developed by: " + ChatColor.RED + JedCore.plugin.getDescription().getAuthors().toString().replace("[", "").replace("]", ""));
 		sender.sendMessage(ChatColor.GRAY + "Modified by: " + ChatColor.RED + "plushmonkey");
-		sender.sendMessage(ChatColor.GRAY + "Maintained by: " + ChatColor.RED + "Cozmyc");
+		sender.sendMessage(ChatColor.GRAY + "Previous Maintainers: " + ChatColor.RED + PREVIOUS_MAINTAINERS);
+		sender.sendMessage(ChatColor.GRAY + "Contributors: " + ChatColor.RED + CONTRIBUTORS);
+		sender.sendMessage(ChatColor.GRAY + "Current Maintainer: " + ChatColor.RED + JedCore.CURRENT_MAINTAINER);
 		sender.sendMessage(ChatColor.GRAY + "URL: " + ChatColor.RED + ChatColor.ITALIC + DOWNLOAD_URL);
 	}
 	

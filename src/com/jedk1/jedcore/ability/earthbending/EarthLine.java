@@ -10,8 +10,10 @@ import com.jedk1.jedcore.policies.removal.IsOfflineRemovalPolicy;
 import com.jedk1.jedcore.policies.removal.SwappedSlotsRemovalPolicy;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.attribute.AttributeCache;
 import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -42,6 +44,7 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 	private long removalTime = -1;
 	private boolean allowChangeDirection;
 	private CompositeRemovalPolicy removalPolicy;
+	@Attribute(Attribute.COOLDOWN)
 	private long useCooldown;
 	private long prepareCooldown;
 	private double sourceKeepRange;
@@ -68,12 +71,22 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 		goOnAfterHit = 1;
 
 		setFields();
+		recalculateAttributes();
 
 		if (prepare()) {
 			start();
-			if (!isRemoved() && prepareCooldown != 0) {
+			if (!isRemoved() && prepareCooldown > 0) {
 				bPlayer.addCooldown(this, prepareCooldown);
 			}
+		} else {
+			clearAttributeCache();
+		}
+	}
+
+	private void clearAttributeCache() {
+		for (AttributeCache cache : CoreAbility.getAttributeCache(this).values()) {
+			cache.getInitialValues().remove(this);
+			cache.getCurrentModifications().remove(this);
 		}
 	}
 	
@@ -91,7 +104,7 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 
 		useCooldown = config.getLong("Abilities.Earth.EarthLine.Cooldown");
 		prepareCooldown = config.getLong("Abilities.Earth.EarthLine.PrepareCooldown");
-		range = config.getInt("Abilities.Earth.EarthLine.Range");
+		range = config.getDouble("Abilities.Earth.EarthLine.Range");
 		prepareRange = config.getDouble("Abilities.Earth.EarthLine.PrepareRange");
 		sourceKeepRange = config.getDouble("Abilities.Earth.EarthLine.SourceKeepRange");
 		affectingRadius = config.getInt("Abilities.Earth.EarthLine.AffectingRadius");
@@ -154,36 +167,23 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 		this.location = this.sourceBlock.getLocation();
 	}
 	
-	private void unfocusBlock() {
-		sourceTempBlock.revertBlock();
-	}
-
 	@Override
 	public void remove() {
 		sourceTempBlock.revertBlock();
 		super.remove();
 	}
 
-	// todo: static
-	private static Location getTargetLocation(Player player) {
-		ConfigurationSection config = JedCoreConfig.getConfig(player);
-
-		double range = config.getInt("Abilities.Earth.EarthLine.Range");
-
-		Entity target = GeneralMethods.getTargetedEntity(player, range, player.getNearbyEntities(range, range, range));
-		Location location;
-
-		if (target == null) {
-			location = GeneralMethods.getTargetedLocation(player, range);
-		} else {
-			location = ((LivingEntity) target).getEyeLocation();
-		}
-
-		return location;
+	private Location getTargetLocation() {
+		Entity target = GeneralMethods.getTargetedEntity(player, range);
+		return target instanceof LivingEntity
+				? ((LivingEntity) target).getEyeLocation()
+				: GeneralMethods.getTargetedLocation(player, range);
 	}
 
 	public void shootLine(Location endLocation) {
-		if (useCooldown != 0 && bPlayer.getCooldown(this.getName()) < useCooldown) bPlayer.addCooldown(this, useCooldown);
+		if (useCooldown > 0 && bPlayer.getCooldown(getName()) < System.currentTimeMillis() + useCooldown) {
+			bPlayer.addCooldown(this, useCooldown);
+		}
 		if (maxDuration > 0) removalTime = System.currentTimeMillis() + maxDuration;
 		this.endLocation = endLocation;
 		progressing = true;
@@ -191,22 +191,24 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 	}
 
 	public static void shootLine(Player player) {
-		if (hasAbility(player, EarthLine.class)) {
-			EarthLine el = getAbility(player, EarthLine.class);
-			if (!el.progressing) {
-				el.shootLine(getTargetLocation(player));
+		for (EarthLine earthLine : getAbilities(player, EarthLine.class)) {
+			if (!earthLine.progressing) {
+				earthLine.shootLine(earthLine.getTargetLocation());
+				return;
 			}
 		}
 	}
 	
 	private boolean sourceOutOfRange() {
-		return sourceBlock == null || sourceBlock.getLocation().add(0.5, 0.5, 0.5).distanceSquared(player.getLocation()) > sourceKeepRange * sourceKeepRange || sourceBlock.getWorld() != player.getWorld();
+		double effectiveKeepRange = Math.max(sourceKeepRange, prepareRange);
+		return sourceBlock == null
+				|| sourceBlock.getWorld() != player.getWorld()
+				|| sourceBlock.getLocation().distanceSquared(player.getLocation()) > effectiveKeepRange * effectiveKeepRange;
 	}
 
 	public void progress() {
 		if (!progressing) {
 			if (sourceOutOfRange()) {
-				unfocusBlock();
 				remove();
 			}
 			return;
@@ -232,19 +234,14 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 			return;
 		}
 
-		if (RegionProtection.isRegionProtected(player, location, this)) {
-			remove();
-			return;
-		}
-
 		if (allowChangeDirection && player.isSneaking() && bPlayer.getBoundAbilityName().equalsIgnoreCase("EarthLine")) {
-			endLocation = getTargetLocation(player);
+			endLocation = getTargetLocation();
 		}
 
 		double x1 = endLocation.getX();
 		double z1 = endLocation.getZ();
-		double x0 = sourceBlock.getX();
-		double z0 = sourceBlock.getZ();
+		double x0 = location.getX();
+		double z0 = location.getZ();
 
 		Vector looking = new Vector(x1 - x0, 0.0D, z1 - z0);
 		Vector push = new Vector(x1 - x0, 0.34999999999999998D, z1 - z0);
@@ -277,7 +274,7 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 			} else {
 				for (Entity entity : GeneralMethods.getEntitiesAroundPoint(location, affectingRadius)) {
 					if (RegionProtection.isRegionProtected(this, entity.getLocation()) || ((entity instanceof Player) && Commands.invincible.contains(entity.getName()))) {
-						return;
+						continue;
 					}
 
 					if ((entity instanceof LivingEntity) && entity.getEntityId() != player.getEntityId()) {

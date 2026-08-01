@@ -24,6 +24,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 public class JedCore extends JavaPlugin {
 
+	public static final String CURRENT_MAINTAINER = "LucidWeaver";
 	public static JedCore plugin;
 	public static Logger log;
 	public static String dev;
@@ -82,8 +83,9 @@ public class JedCore extends JavaPlugin {
 	}
 
 	public static void checkMaintainer() {
-		if (!dev.contains("Cozmyc (Maintainer)")) {
-			dev = dev  + ", Cozmyc (Maintainer)";
+		String maintainer = CURRENT_MAINTAINER + " (Maintainer)";
+		if (!dev.contains(maintainer)) {
+			dev = dev + ", " + maintainer;
 		}
 	}
 
