@@ -1,11 +1,14 @@
-[![GitHub Pre-Release](https://img.shields.io/github/release-pre/CozmycDev/JedCore.svg)](https://github.com/CozmycDev/JedCore/releases)
-[![Github All Releases](https://img.shields.io/github/downloads/CozmycDev/JedCore/total.svg)](https://github.com/CozmycDev/JedCore/releases)
-![Size](https://img.shields.io/github/repo-size/CozmycDev/JedCore.svg)
+![GitHub repo size](https://img.shields.io/github/repo-size/kaan-gunay/JedCore.svg)
 
 # JedCore
-This is my fork of plushmonkey's fork of jedk1's JedCore addon for ProjectKorra.  
-Download releases [here](https://github.com/CozmycDev/JedCore/releases).
-Join our [Discord](https://discord.gg/gh9MfDmwZm) to discuss the plugin, suggest changes, report bugs, etc.
+
+This repository is an independent continuation of the JedCore addon for ProjectKorra. JedCore was originally created by [jedk1](https://github.com/jedk1/JedCore). Its main development line was continued by [plushmonkey](https://github.com/plushmonkey/JedCore), then [Aztlon](https://github.com/Aztlon/JedCore), and later [CozmycDev](https://github.com/CozmycDev/JedCore). Their work is the foundation of this project, and its original history and changelog are preserved below.
+
+My involvement in the ProjectKorra community predates this repository and the use of AI. For years, I tested ProjectKorra and its addon ecosystem, investigated bugs, filed reports, and suggested changes across multiple projects. Part of that history is visible in [the issues I opened on GitHub](https://github.com/search?q=author%3Akaan-gunay&type=issues), while much of my participation took place through Discord and is not reflected in my GitHub profile. Before I had a practical way to implement changes myself, finding and documenting problems was the main contribution I could make. Some reports and suggestions remained unresolved for years, and some never received a response, but I continued because I cared about the bending experience in actual play.
+
+AI gave me a way to apply that accumulated testing experience to this independent continuation of JedCore instead of only reporting problems and waiting for someone else to implement changes. I decide the intended behavior, configuration, and acceptance criteria; AI writes most of the code; and I validate the results through in-game and configuration testing. I do not claim that every change receives the line-by-line human review expected in a conventional open-source project.
+
+After this process produced changes much larger than a typical personal fork, I removed the repository from GitHub's fork network. Asking the previous maintainers or other human developers to review and merge a large body of AI-generated code would place an unfair burden on them. Keeping this repository independent preserves JedCore's lineage and gives its previous developers full credit without implying that they reviewed, endorsed, or are responsible for the code maintained here.
 
 ## Changelog
 
