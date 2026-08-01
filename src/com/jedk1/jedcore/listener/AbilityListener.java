@@ -111,6 +111,9 @@ public class AbilityListener implements Listener {
 		if (event.getAbility() instanceof AirBreath) {
 			AirBreath.applyAvatarStateModifier(event);
 		}
+		if (event.getAbility() instanceof EarthKick) {
+			EarthKick.applyAvatarStateModifier(event);
+		}
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

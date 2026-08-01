@@ -1,6 +1,7 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.collision.AABB;
 import com.jedk1.jedcore.collision.CollisionDetector;
 import com.jedk1.jedcore.collision.CollisionUtil;
@@ -117,7 +118,6 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 
 	public void raiseEarthBlock(Block block) {
 		if (block == null) return;
-		if (EarthAbility.getMovedEarth().containsKey(block)) return;
 		if (tblockTracker.size() >= maxShards) return;
 
 		Vector blockVector = block.getLocation().toVector().toBlockVector().setY(0);
@@ -157,7 +157,7 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 
 		Location loc = block.getLocation().add(0.5, 0, 0.5);
 		new TempFallingBlock(loc, material.createBlockData(), new Vector(0, 0.8, 0), this);
-		TempBlock tb = new TempBlock(block, Material.AIR.createBlockData());
+		TempBlock tb = JCMethods.createTempBlock(block, Material.AIR.createBlockData());
 		tblockTracker.add(tb);
 
 		handleKnockup(block);
@@ -224,7 +224,7 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 				FallingBlock fb = tfb.getFallingBlock();
 
 				if (fb.isDead() || fb.getLocation().getBlockY() == origin.getBlockY() + 2) {
-					TempBlock tb = new TempBlock(fb.getLocation().getBlock(), fb.getBlockData());
+					TempBlock tb = JCMethods.createTempBlock(fb.getLocation().getBlock(), fb.getBlockData());
 					readyBlocksTracker.add(tb);
 					tfb.remove();
 				}

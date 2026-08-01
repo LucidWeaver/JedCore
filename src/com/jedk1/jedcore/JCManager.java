@@ -26,6 +26,8 @@ public class JCManager implements Runnable {
 		EarthPillar.progressAll();
 		ThrownEntityTracker.updateAll();
 		
+		JCMethods.refreshCompatibleTempBlocks();
+		JCMethods.refreshProtectedMovedEarth();
 		RegenTempBlock.manage();
 	}
 }

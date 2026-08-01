@@ -1,12 +1,12 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -51,6 +51,7 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 	private Location location;
 	private int shots;
 	private Block selectedSource;
+	private JCMethods.MovedEarthLease sourceLease;
 	private boolean isInitialState = true;
 
 	private final ConcurrentHashMap<Location, Location> blasts = new ConcurrentHashMap<>();
@@ -68,8 +69,14 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 		location.setPitch(0);
 
 		if (prepare()) {
-			player.getWorld().playSound(selectedSource.getLocation(), Sound.ITEM_BUCKET_FILL_LAVA, 1.0f, 1.0f);
-			start();
+			try {
+				player.getWorld().playSound(selectedSource.getLocation(), Sound.ITEM_BUCKET_FILL_LAVA, 1.0f, 1.0f);
+				start();
+			} finally {
+				if (!isStarted()) {
+					releaseSourceLease();
+				}
+			}
 		}
 	}
 
@@ -120,7 +127,8 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 	private boolean prepare() {
 		Block targetBlock = getTargetLavaBlock(sourceRange);
 
-		if (targetBlock != null && !TempBlock.isTempBlock(targetBlock) && !EarthAbility.getMovedEarth().containsKey(targetBlock)) {
+		if (targetBlock != null && !TempBlock.isTempBlock(targetBlock)) {
+			sourceLease = JCMethods.protectMovedEarth(targetBlock);
 			selectedSource = targetBlock;
 			return true;
 		}
@@ -219,6 +227,19 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 				blasts.remove(l);
 				blasts.put(head, origin);
 			}
+		}
+	}
+
+	@Override
+	public void remove() {
+		releaseSourceLease();
+		super.remove();
+	}
+
+	private void releaseSourceLease() {
+		if (sourceLease != null) {
+			sourceLease.close();
+			sourceLease = null;
 		}
 	}
 

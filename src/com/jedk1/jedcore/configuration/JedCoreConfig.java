@@ -356,13 +356,14 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthKick.Cooldown", 2000);
 		config.addDefault("Abilities.Earth.EarthKick.EarthBlocks", 10);
 
-		double oldDamage = 0.0;
-		if (config.contains("Abilities.Earth.EarthKick.Damage")) {
-			oldDamage = config.getDouble("Abilities.Earth.EarthKick.Damage");
+		Object oldDamage = config.get("Abilities.Earth.EarthKick.Damage");
+		if (oldDamage instanceof Number number) {
 			config.set("Abilities.Earth.EarthKick.Damage", null);
+			config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", number.doubleValue());
+		} else {
+			config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", 2.0);
 		}
 
-		config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", oldDamage > 0.0 ? oldDamage : 2.0);
 		config.addDefault("Abilities.Earth.EarthKick.Damage.Metal", 3.0);
 		config.addDefault("Abilities.Earth.EarthKick.EntityCollisionRadius", 1.5);
 		config.addDefault("Abilities.Earth.EarthKick.AbilityCollisionRadius", 1.5);
@@ -393,9 +394,6 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirSpout.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirSpout.RemoveFirst", false);
 		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirSpout.RemoveSecond", true);
-		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirWheel.Enabled", true);
-		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirWheel.RemoveFirst", false);
-		config.addDefault("Abilities.Earth.EarthKick.Collisions.AirWheel.RemoveSecond", true);
 
 
 		config.addDefault("Abilities.Earth.EarthLine.Enabled", true);

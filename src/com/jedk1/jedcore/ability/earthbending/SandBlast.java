@@ -1,11 +1,11 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.ElementalAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.SandAbility;
 import com.projectkorra.projectkorra.ability.util.Collision;
 import com.projectkorra.projectkorra.attribute.Attribute;
@@ -91,15 +91,12 @@ public class SandBlast extends SandAbility implements AddonAbility {
 		source = getEarthSourceBlock(sourceRange);
 
 		if (source != null) {
-			if (EarthAbility.getMovedEarth().containsKey(source)) {
-				return false;
-			}
 			if (isSand(source) && ElementalAbility.isAir(source.getRelative(BlockFace.UP).getType())) {
 				this.sourceData = source.getBlockData().clone();
 				if (DensityShift.isPassiveSand(source)) {
 					DensityShift.revertSand(source);
 				}
-				tempBlock = new TempBlock(source, Material.SANDSTONE.createBlockData());
+				tempBlock = JCMethods.createTempBlock(source, Material.SANDSTONE.createBlockData());
 				return true;
 			}
 		}

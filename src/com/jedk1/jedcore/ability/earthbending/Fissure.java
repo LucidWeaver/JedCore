@@ -1,16 +1,15 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
 import com.projectkorra.projectkorra.region.RegionProtection;
-import com.projectkorra.projectkorra.util.Information;
 
 import com.projectkorra.projectkorra.util.TempBlock;
 
@@ -118,13 +117,6 @@ public class Fissure extends LavaAbility implements AddonAbility {
 				Block b = bi.next();
 
 				if (b.getY() > b.getWorld().getMinHeight()  && b.getY() < b.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, b.getLocation())) {
-					if (EarthAbility.getMovedEarth().containsKey(b)){
-						Information info = EarthAbility.getMovedEarth().get(b);
-						if(!info.getBlock().equals(b)) {
-							continue;
-						}
-					}
-
 					while (!isEarthbendable(player, b)) {
 						b = b.getRelative(BlockFace.DOWN);
 						if (b.getY() < b.getWorld().getMinHeight() || b.getY() > b.getWorld().getMaxHeight()) {
@@ -198,13 +190,6 @@ public class Fissure extends LavaAbility implements AddonAbility {
 
 	private void expand(Block block) {
 		if (block != null && block.getY() > block.getWorld().getMinHeight() && block.getY() < block.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, block.getLocation())) {
-			if (EarthAbility.getMovedEarth().containsKey(block)){
-				Information info = EarthAbility.getMovedEarth().get(block);
-				if(!info.getBlock().equals(block)) {
-					return;
-				}
-			}
-
 			while (!isEarthbendable(player, block)) {
 				block = block.getRelative(BlockFace.DOWN);
 				if (block.getY() < block.getWorld().getMinHeight() || block.getY() > block.getWorld().getMaxHeight()) {
@@ -237,7 +222,7 @@ public class Fissure extends LavaAbility implements AddonAbility {
 		if (DensityShift.isPassiveSand(block)) {
             DensityShift.revertSand(block);
 		}
-		tempblocks.add(new TempBlock(block, material.createBlockData(), this));
+		tempblocks.add(JCMethods.createTempBlock(block, material.createBlockData(), this));
 		blocks.add(block);
 	}
 
@@ -271,7 +256,7 @@ public class Fissure extends LavaAbility implements AddonAbility {
 	private void coolLava() {
 		tempblocks.forEach(TempBlock::revertBlock);
 		for (Block block : blocks) {
-			new TempBlock(block, Material.STONE.createBlockData(), 500 + (long) rand.nextInt((int) 1000));
+			JCMethods.createTempBlock(block, Material.STONE.createBlockData(), 500 + (long) rand.nextInt((int) 1000));
 		}
 		blocks.clear();
 		tempblocks.clear();

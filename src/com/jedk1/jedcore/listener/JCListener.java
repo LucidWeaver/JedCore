@@ -237,9 +237,10 @@ public class JCListener implements Listener {
 		MetalShred.startShred(event.getPlayer());
 	}
 
-	@EventHandler(priority = EventPriority.NORMAL)
+	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
 	public void projectKorraReload(BendingReloadEvent event) {
 		final CommandSender sender = event.getSender();
+		JCMethods.prepareProjectKorraReload();
 		LightManager.get().restart();
 		// There's a PK bug where a new collision manager is set on reload without stopping the old task.
 		ProjectKorra.getCollisionManager().stopCollisionDetection();

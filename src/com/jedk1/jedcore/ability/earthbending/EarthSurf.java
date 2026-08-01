@@ -1,6 +1,7 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.MaterialUtil;
 import com.jedk1.jedcore.util.RegenTempBlock;
@@ -78,7 +79,11 @@ public class EarthSurf extends EarthAbility implements AddonAbility {
 		Block beneath = getBlockBeneath(player.getLocation().clone());
 		double maxHeight = getMaxHeight();
 
-		return isEarthbendable(player, beneath) && !isMetal(beneath) && beneath.getLocation().distanceSquared(player.getLocation()) <= maxHeight * maxHeight && !EarthAbility.getMovedEarth().containsKey(beneath);
+		if (beneath == null || !isEarthbendable(player, beneath) || isMetal(beneath) || beneath.getLocation().distanceSquared(player.getLocation()) > maxHeight * maxHeight) {
+			return false;
+		}
+
+		return true;
 	}
 
 	public void setFields() {
@@ -205,7 +210,7 @@ public class EarthSurf extends EarthAbility implements AddonAbility {
 			}
 
 			Block beneath = getBlockBeneath(loc.clone().add(0, -2.9, 0).toVector().add(location.clone().getDirection().multiply(distOffset)).toLocation(player.getWorld()));
-			if (isEarthbendable(player, beneath) && beneath != null && !EarthAbility.getMovedEarth().containsKey(beneath)) {
+			if (beneath != null && isEarthbendable(player, beneath)) {
 				Block block = loc.clone().add(0, -3.9, 0).toVector().add(location.clone().getDirection().multiply(distOffset - 0.5)).toLocation(player.getWorld()).getBlock();
 				Location temp = loc.clone().add(0, -2.9, 0).toVector().add(location.clone().getDirection().multiply(distOffset)).toLocation(player.getWorld());
 
@@ -217,7 +222,6 @@ public class EarthSurf extends EarthAbility implements AddonAbility {
 				if (block.getLocation().getY() > this.player.getLocation().getY()) {
 					continue;
 				}
-
 				if (DensityShift.isPassiveSand(block)) {
 					DensityShift.revertSand(block);
 				}
@@ -227,7 +231,7 @@ public class EarthSurf extends EarthAbility implements AddonAbility {
 						DensityShift.revertSand(block.getRelative(BlockFace.UP));
 					}
 
-					new TempBlock(block.getRelative(BlockFace.UP), Material.AIR.createBlockData());
+					JCMethods.createTempBlock(block.getRelative(BlockFace.UP), Material.AIR.createBlockData());
 				}
 
 				if (GeneralMethods.isSolid(block)) {

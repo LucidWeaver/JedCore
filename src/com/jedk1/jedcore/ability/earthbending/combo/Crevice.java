@@ -1,6 +1,7 @@
 package com.jedk1.jedcore.ability.earthbending.combo;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
@@ -100,7 +101,7 @@ public class Crevice extends EarthAbility implements AddonAbility, ComboAbility 
 
 	private Block findValidTargetBlock(Block initialBlock) {
 		Block targetBlock = initialBlock;
-		if (!isEarthbendable(targetBlock) || EarthAbility.getMovedEarth().containsKey(targetBlock)) {
+		if (!isEarthbendable(targetBlock)) {
 			return null;
 		}
 
@@ -245,7 +246,7 @@ public class Crevice extends EarthAbility implements AddonAbility, ComboAbility 
 			if (i == 0 && !isTransparent(tempLoc.getBlock())) {
 				continue;
 			}
-			if (i > 0 && (!isEarthbendable(tempLoc.getBlock()) || EarthAbility.getMovedEarth().containsKey(tempLoc.getBlock()))) {
+			if (i > 0 && !isEarthbendable(tempLoc.getBlock())) {
 				continue;
 			}
 
@@ -254,7 +255,8 @@ public class Crevice extends EarthAbility implements AddonAbility, ComboAbility 
 			}
 
 
-			blocks.add(new TempBlock(tempLoc.getBlock(), Material.AIR.createBlockData()));
+			Block block = tempLoc.getBlock();
+			blocks.add(JCMethods.createTempBlock(block, Material.AIR.createBlockData()));
 			tempLoc.subtract(0, 1, 0);
 		}
 

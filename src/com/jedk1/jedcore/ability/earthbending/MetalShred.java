@@ -1,10 +1,10 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.ElementalAbility;
 import com.projectkorra.projectkorra.ability.MetalAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
@@ -82,9 +82,6 @@ public class MetalShred extends MetalAbility implements AddonAbility {
 	public boolean selectSource() {
 		Block b = BlockSource.getEarthSourceBlock(player, selectRange, ClickType.SHIFT_DOWN);
 
-		if (EarthAbility.getMovedEarth().containsKey(b))
-			return false;
-
 		if (!isMetal(b))
 			return false;
 
@@ -110,32 +107,32 @@ public class MetalShred extends MetalAbility implements AddonAbility {
 		}
 
 		if (!up.getType().isSolid()) {
-			TempBlock tbu = new TempBlock(up, b.getBlockData());
+			TempBlock tbu = JCMethods.createTempBlock(up, b.getBlockData());
 			tblocks.add(tbu);
 		}
 
 		if (!awayup.getType().isSolid()) {
-			TempBlock tbau = new TempBlock(awayup, away.getBlockData());
+			TempBlock tbau = JCMethods.createTempBlock(awayup, away.getBlockData());
 			tblocks.add(tbau);
 		}
 
 		if (isMetal(b)) {
-			TempBlock tbd = new TempBlock(b, Material.AIR.createBlockData());
+			TempBlock tbd = JCMethods.createTempBlock(b, Material.AIR.createBlockData());
 			tblocks.add(tbd);
 		}
 
 		if (isMetal(away)) {
-			TempBlock tba = new TempBlock(away, Material.AIR.createBlockData());
+			TempBlock tba = JCMethods.createTempBlock(away, Material.AIR.createBlockData());
 			tblocks.add(tba);
 		}
 
 		if (isMetal(deeperb)) {
-			TempBlock tbdb = new TempBlock(deeperb, Material.AIR.createBlockData());
+			TempBlock tbdb = JCMethods.createTempBlock(deeperb, Material.AIR.createBlockData());
 			tblocks.add(tbdb);
 		}
 
 		if (isMetal(deepera)) {
-			TempBlock tbda = new TempBlock(deepera, Material.AIR.createBlockData());
+			TempBlock tbda = JCMethods.createTempBlock(deepera, Material.AIR.createBlockData());
 			tblocks.add(tbda);
 		}
 
@@ -153,22 +150,22 @@ public class MetalShred extends MetalAbility implements AddonAbility {
 		}
 
 		if (!side.getType().isSolid()) {
-			TempBlock tbs = new TempBlock(side, b.getBlockData());
+			TempBlock tbs = JCMethods.createTempBlock(side, b.getBlockData());
 			tblocks.add(tbs);
 		}
 
 		if (!underside.getType().isSolid()) {
-			TempBlock tbus = new TempBlock(underside, under.getBlockData());
+			TempBlock tbus = JCMethods.createTempBlock(underside, under.getBlockData());
 			tblocks.add(tbus);
 		}
 
 		if (isMetal(b)) {
-			TempBlock tb1 = new TempBlock(b, Material.AIR.createBlockData());
+			TempBlock tb1 = JCMethods.createTempBlock(b, Material.AIR.createBlockData());
 			tblocks.add(tb1);
 		}
 
 		if (isMetal(under)) {
-			TempBlock tb2 = new TempBlock(under, Material.AIR.createBlockData());
+			TempBlock tb2 = JCMethods.createTempBlock(under, Material.AIR.createBlockData());
 			tblocks.add(tb2);
 		}
 
@@ -182,7 +179,7 @@ public class MetalShred extends MetalAbility implements AddonAbility {
 			return;
 
 		if (!b.getType().isSolid()) {
-			TempBlock tbb = new TempBlock(b, Material.IRON_BLOCK.createBlockData());
+			TempBlock tbb = JCMethods.createTempBlock(b, Material.IRON_BLOCK.createBlockData());
 			tblocks.add(tbb);
 		}
 
@@ -190,7 +187,7 @@ public class MetalShred extends MetalAbility implements AddonAbility {
 			stopCoil = true;
 
 		if (!under.getType().isSolid()) {
-			TempBlock tbu = new TempBlock(under, Material.IRON_BLOCK.createBlockData());
+			TempBlock tbu = JCMethods.createTempBlock(under, Material.IRON_BLOCK.createBlockData());
 			tblocks.add(tbu);
 		}
 

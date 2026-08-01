@@ -14,7 +14,6 @@ import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.ElementalAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
 import com.projectkorra.projectkorra.firebending.util.FireDamageTimer;
@@ -112,12 +111,12 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		double sourceRange = config.getDouble("Abilities.Earth.LavaDisc.Source.Range");
 
 		Block lavaSource = getLavaSourceBlock(player, sourceRange);
-		if (lavaSource != null && !EarthAbility.getMovedEarth().containsKey(lavaSource)) {
+		if (lavaSource != null) {
 			new RegenTempBlock(lavaSource, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled)bd).setLevel(4)), sourceRegen);
 			return true;
 		} else {
 			Block earthSource = getEarthSourceBlock(sourceRange);
-			if (earthSource != null && !lavaOnly && !EarthAbility.getMovedEarth().containsKey(earthSource)) {
+			if (earthSource != null && !lavaOnly) {
 				new RegenTempBlock(earthSource, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled)bd).setLevel(4)), sourceRegen);
 			return true;
 			}
@@ -533,11 +532,6 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 
 		private void damageBlocks(Location l) {
 			Block block = l.getBlock();
-			if (EarthAbility.getMovedEarth().containsKey(block)) {
-				location.getWorld().spawnParticle(Particle.LAVA, l, 20, 0.5, 0.5, 0.5, 0.2);
-				location.getWorld().spawnParticle(Particle.BLOCK_CRACK, l, 15, 0.3, 0.3, 0.3, 0.15, Material.LAVA.createBlockData());
-				return;
-			}
 			if (!RegionProtection.isRegionProtected(player, l, LavaDisc.this)) {
 				if (!TempBlock.isTempBlock(block) && (isEarthbendable(player, block) || isMetal(block) || meltable.contains(block.getType().name()))) {
 					if (DensityShift.isPassiveSand(block)) {

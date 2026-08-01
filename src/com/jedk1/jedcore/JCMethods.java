@@ -5,11 +5,13 @@ import java.util.*;
 import com.jedk1.jedcore.ability.waterbending.passive.IcePassive;
 import com.jedk1.jedcore.util.*;
 import com.projectkorra.projectkorra.ability.ElementalAbility;
+import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.WaterAbility;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
@@ -22,7 +24,12 @@ import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ProjectKorra;
 import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.util.ComboManager;
+import com.projectkorra.projectkorra.util.Information;
+import com.projectkorra.projectkorra.util.RevertChecker;
 import com.projectkorra.projectkorra.util.TempBlock;
+
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 public class JCMethods {
 
@@ -55,6 +62,188 @@ public class JCMethods {
 
 	private static List<String> worlds = new ArrayList<>();
 	private static List<String> combos = new ArrayList<>();
+	private static final Map<TempBlock, MovedEarthLease> compatibleTempBlocks = new ConcurrentHashMap<>();
+	private static final Map<Block, MovedEarthProtection> protectedMovedEarth = new ConcurrentHashMap<>();
+	private static boolean projectKorraReloading;
+
+	public static MovedEarthLease protectMovedEarth(Block block) {
+		if (block == null || projectKorraReloading) {
+			return new MovedEarthLease(null, null);
+		}
+
+		Information information = EarthAbility.getMovedEarth().get(block);
+		if (information == null) {
+			return new MovedEarthLease(null, null);
+		}
+
+		protectedMovedEarth.compute(block, (key, protection) -> {
+			if (protection == null || protection.information != information) {
+				return new MovedEarthProtection(information, information.getTime());
+			}
+			protection.references++;
+			return protection;
+		});
+		RevertChecker.earthRevertQueue.remove(block);
+		information.setTime(System.currentTimeMillis());
+		return new MovedEarthLease(block, information);
+	}
+
+	public static TempBlock createTempBlock(Block block, Material material) {
+		return createCompatibleTempBlock(block, () -> new TempBlock(block, material));
+	}
+
+	public static TempBlock createTempBlock(Block block, BlockData data) {
+		return createCompatibleTempBlock(block, () -> new TempBlock(block, data));
+	}
+
+	public static TempBlock createTempBlock(Block block, BlockData data, long revertTime) {
+		return createCompatibleTempBlock(block, () -> new TempBlock(block, data, revertTime));
+	}
+
+	public static TempBlock createTempBlock(Block block, BlockData data, CoreAbility ability) {
+		return createCompatibleTempBlock(block, () -> new TempBlock(block, data, ability));
+	}
+
+	public static TempBlock createTempBlock(Block block, BlockData data, long revertTime, CoreAbility ability) {
+		return createCompatibleTempBlock(block, () -> new TempBlock(block, data, revertTime, ability));
+	}
+
+	private static TempBlock createCompatibleTempBlock(Block block, Supplier<TempBlock> factory) {
+		if (projectKorraReloading) {
+			TempBlock tempBlock = factory.get();
+			tempBlock.revertBlock();
+			return tempBlock;
+		}
+
+		MovedEarthLease lease = protectMovedEarth(block);
+		try {
+			TempBlock tempBlock = factory.get();
+			compatibleTempBlocks.put(tempBlock, lease);
+			return tempBlock;
+		} catch (RuntimeException | Error exception) {
+			lease.close();
+			throw exception;
+		}
+	}
+
+	public static void prepareProjectKorraReload() {
+		projectKorraReloading = true;
+		revertCompatibleTempBlocks();
+		RegenTempBlock.revertAll();
+		releaseAllMovedEarthProtection();
+	}
+
+	public static boolean isProjectKorraReloading() {
+		return projectKorraReloading;
+	}
+
+	public static void finishProjectKorraReload() {
+		projectKorraReloading = false;
+	}
+
+	public static void revertCompatibleTempBlocks() {
+		for (Map.Entry<TempBlock, MovedEarthLease> entry : compatibleTempBlocks.entrySet()) {
+			TempBlock tempBlock = entry.getKey();
+			MovedEarthLease lease = entry.getValue();
+			if (compatibleTempBlocks.remove(tempBlock, lease)) {
+				try {
+					tempBlock.revertBlock();
+				} finally {
+					lease.close();
+				}
+			}
+		}
+	}
+
+	public static void refreshCompatibleTempBlocks() {
+		for (Map.Entry<TempBlock, MovedEarthLease> entry : compatibleTempBlocks.entrySet()) {
+			TempBlock tempBlock = entry.getKey();
+			MovedEarthLease lease = entry.getValue();
+			Block block = tempBlock.getBlock();
+			if ((!TempBlock.isTempBlock(block) || !TempBlock.getAll(block).contains(tempBlock)) && compatibleTempBlocks.remove(tempBlock, lease)) {
+				lease.close();
+			}
+		}
+	}
+
+	public static void refreshProtectedMovedEarth() {
+		for (Map.Entry<Block, MovedEarthProtection> entry : protectedMovedEarth.entrySet()) {
+			Block block = entry.getKey();
+			MovedEarthProtection protection = entry.getValue();
+			Information information = EarthAbility.getMovedEarth().get(block);
+			if (information != protection.information) {
+				protectedMovedEarth.remove(block, protection);
+				continue;
+			}
+
+			RevertChecker.earthRevertQueue.remove(block);
+			information.setTime(System.currentTimeMillis());
+		}
+	}
+
+	public static void releaseAllMovedEarthProtection() {
+		for (Map.Entry<Block, MovedEarthProtection> entry : protectedMovedEarth.entrySet()) {
+			Block block = entry.getKey();
+			MovedEarthProtection protection = entry.getValue();
+			if (protectedMovedEarth.remove(block, protection) && EarthAbility.getMovedEarth().get(block) == protection.information) {
+				RevertChecker.earthRevertQueue.remove(block);
+				protection.information.setTime(protection.time);
+			}
+		}
+	}
+
+	private static void releaseMovedEarth(Block block, Information information) {
+		protectedMovedEarth.computeIfPresent(block, (key, protection) -> {
+			if (protection.information != information) {
+				return protection;
+			}
+
+			protection.references--;
+			if (protection.references > 0) {
+				return protection;
+			}
+
+			if (EarthAbility.getMovedEarth().get(block) == information) {
+				RevertChecker.earthRevertQueue.remove(block);
+				information.setTime(protection.time);
+			}
+			return null;
+		});
+	}
+
+	private static class MovedEarthProtection {
+		private final Information information;
+		private final long time;
+		private int references;
+
+		private MovedEarthProtection(Information information, long time) {
+			this.information = information;
+			this.time = time;
+			this.references = 1;
+		}
+	}
+
+	public static final class MovedEarthLease implements AutoCloseable {
+		private final Block block;
+		private final Information information;
+		private boolean closed;
+
+		private MovedEarthLease(Block block, Information information) {
+			this.block = block;
+			this.information = information;
+		}
+
+		@Override
+		public synchronized void close() {
+			if (closed) {
+				return;
+			}
+			closed = true;
+			if (block != null && information != null) {
+				releaseMovedEarth(block, information);
+			}
+		}
+	}
 
 	public static List<String> getDisabledWorlds() {
 		return JCMethods.worlds;
@@ -344,6 +533,7 @@ public class JCMethods {
 	}
 
 	public static void reload() {
+		finishProjectKorraReload();
 		JedCore.log.info("JedCore Reloaded.");
 		JedCore.plugin.reloadConfig();
 		JedCore.logDebug = JedCoreConfig.getConfig((World)null).getBoolean("Properties.LogDebug");

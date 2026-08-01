@@ -1,16 +1,20 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.collision.AABB;
 import com.jedk1.jedcore.collision.CollisionDetector;
 import com.jedk1.jedcore.collision.CollisionUtil;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.BlockUtil;
 import com.projectkorra.projectkorra.ability.AddonAbility;
+import com.projectkorra.projectkorra.ability.CoreAbility;
 import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.util.Collision;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.attribute.AttributeCache;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
+import com.projectkorra.projectkorra.event.AbilityRecalculateAttributeEvent;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
 
@@ -29,6 +33,7 @@ import org.bukkit.util.Vector;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,6 +41,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import static java.util.stream.Collectors.toList;
 
 public class EarthKick extends EarthAbility implements AddonAbility {
+	private static final String METAL_DAMAGE_ATTRIBUTE = "Metal" + Attribute.DAMAGE;
+
 	private final List<TempFallingBlock> temps = new ArrayList<>();
 	private final Set<UUID> hitEntities = new HashSet<>();
 
@@ -55,7 +62,7 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 	private int earthBlocks;
 	@Attribute(Attribute.DAMAGE)
 	private double damage;
-	@Attribute(Attribute.DAMAGE)
+	@Attribute(METAL_DAMAGE_ATTRIBUTE)
 	private double metalDmg;
 	@Attribute("CollisionRadius")
 	private double entityCollisionRadius;
@@ -72,11 +79,18 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 		location = player.getLocation();
 
 		if ((player.getLocation().getPitch() > -5) && prepare()) {
-			if (RegionProtection.isRegionProtected(this, block.getLocation())) {
+			start();
+			if (!isStarted()) {
 				return;
 			}
+
+			if (!prepareSource()) {
+				remove();
+				return;
+			}
+
+			revertSource();
 			launchBlocks();
-			start();
 		}
 	}
 
@@ -102,33 +116,67 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 
 	private boolean prepare() {
 		block = player.getTargetBlock(getTransparentMaterialSet(), sourceRange);
+		return prepareSource();
+	}
 
-		if (EarthAbility.getMovedEarth().containsKey(block)) {
+	private boolean prepareSource() {
+		if (block == null) {
 			return false;
 		}
 
-		if (!isEarthbendable(player, block)) {
+		if (!isEarthbendable(player, block) || RegionProtection.isRegionProtected(this, block.getLocation())) {
 			return false;
 		}
 
+		BlockData sourceData = getRevertedSourceData();
+		if (!canUseSource(sourceData.getMaterial())) {
+			return false;
+		}
+
+		materialData = sourceData;
+		location.setX(block.getX() + 0.5);
+		location.setY(block.getY());
+		location.setZ(block.getZ() + 0.5);
+
+		return true;
+	}
+
+	private boolean canUseSource(Material material) {
+		if (!EarthAbility.isEarthbendable(material, true, true, true)) {
+			return false;
+		}
+		if (isMetal(material)) {
+			return allowMetal && bPlayer.canMetalbend();
+		}
+		if (isSand(material)) {
+			return bPlayer.canSandbend();
+		}
+		return !isLava(material) || bPlayer.canLavabend();
+	}
+
+	private BlockData getRevertedSourceData() {
+		if (!TempBlock.isTempBlock(block)) {
+			return block.getBlockData().clone();
+		}
+
+		List<TempBlock> tempBlocks = TempBlock.getAll(block);
+		int sourceIndex = tempBlocks.size() - 2;
+		if (sourceIndex >= 0 && DensityShift.getSandBlocks().contains(tempBlocks.get(sourceIndex))) {
+			sourceIndex--;
+		}
+		if (sourceIndex >= 0) {
+			return tempBlocks.get(sourceIndex).getBlockData().clone();
+		}
+		return tempBlocks.get(0).getState().getBlockData().clone();
+	}
+
+	private void revertSource() {
 		if (TempBlock.isTempBlock(block)) {
 			TempBlock.get(block).revertBlock();
 		}
-
 		if (DensityShift.isPassiveSand(block)) {
 			DensityShift.revertSand(block);
 		}
-
-		if (block != null && (allowMetal || !isMetal(block))) {
-			materialData = block.getBlockData().clone();
-			location.setX(block.getX() + 0.5);
-			location.setY(block.getY());
-			location.setZ(block.getZ() + 0.5);
-
-			return true;
-		}
-
-		return false;
 	}
 
 	@Override
@@ -154,12 +202,8 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 
 	private void launchBlocks() {
 		if (replaceSource) {
-			if (getMovedEarth().containsKey(block)) {
-				block.setType(Material.AIR);
-			}
-
 			if (block.getType() != Material.AIR) {
-				TempBlock air = new TempBlock(block, Material.AIR);
+				TempBlock air = JCMethods.createTempBlock(block, Material.AIR);
 				air.setRevertTime(5000L);
 			}
 		}
@@ -182,9 +226,7 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 			location.setYaw(yaw + rand.nextInt((spread * 2) + 1) - spread);
 			location.setPitch(rand.nextInt(25) - 45);
 
-			Vector v = location.clone().add(0, 0.8, 0).getDirection().normalize();
-			Location location1 = location.clone().add(new Vector(v.getX() * 2, v.getY(), v.getZ() * 2));
-			Vector dir = location1.setDirection(location.getDirection()).getDirection().multiply(velocity);
+			Vector dir = location.getDirection().multiply(velocity);
 
 			temps.add(new TempFallingBlock(location, materialData, dir, this));
 		}
@@ -201,14 +243,19 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 				continue;
 			}
 
+			Location particleLocation = fb.getLocation();
 			for (int i = 0; i < 2; i++) {
-				location.getWorld().spawnParticle(Particle.BLOCK_CRACK, location, 1, 0.0, 0.0, 0.0, 0.1, materialData);
-				location.getWorld().spawnParticle(Particle.BLOCK_CRACK, location, 1, 0.0, 0.0, 0.0, 0.2, materialData);
+				particleLocation.getWorld().spawnParticle(Particle.BLOCK_CRACK, particleLocation, 1, 0.0, 0.0, 0.0, 0.1, materialData);
+				particleLocation.getWorld().spawnParticle(Particle.BLOCK_CRACK, particleLocation, 1, 0.0, 0.0, 0.0, 0.2, materialData);
 			}
 
 			AABB collider = BlockUtil.getFallingBlockBoundsFull(fb).scale(entityCollisionRadius * 2.0);
 
 			CollisionDetector.checkEntityCollisions(player, fb.getWorld(), collider, (entity) -> {
+				if (RegionProtection.isRegionProtected(this, entity.getLocation())) {
+					return false;
+				}
+
 				UUID uuid = entity.getUniqueId();
 				if (this.multipleHits || hitEntities.add(uuid)) {
 					DamageHandler.damageEntity(entity, isMetal(fb.getBlockData().getMaterial()) ? metalDmg : damage, this);
@@ -218,6 +265,26 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 		}
 
 		temps.removeAll(destroy);
+	}
+
+	public static void applyAvatarStateModifier(AbilityRecalculateAttributeEvent event) {
+		EarthKick ability = (EarthKick) event.getAbility();
+
+		if (ability.bPlayer == null || !ability.bPlayer.isAvatarState() || !event.getAttribute().equals(METAL_DAMAGE_ATTRIBUTE)) {
+			return;
+		}
+
+		Map<String, AttributeCache> attributes = CoreAbility.getAttributeCache(ability);
+		AttributeCache target = attributes.get(METAL_DAMAGE_ATTRIBUTE);
+		AttributeCache inherited = attributes.get(Attribute.DAMAGE);
+
+		if (target == null || inherited == null || target.getAvatarStateModifier().isPresent()) {
+			return;
+		}
+
+		if (inherited.getAvatarStateModifier().isPresent()) {
+			event.addModification(inherited.getAvatarStateModifier().get());
+		}
 	}
 
 	@Override

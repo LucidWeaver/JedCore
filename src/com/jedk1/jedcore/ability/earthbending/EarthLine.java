@@ -1,6 +1,7 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.policies.removal.CannotBendRemovalPolicy;
 import com.jedk1.jedcore.policies.removal.CompositeRemovalPolicy;
@@ -106,8 +107,6 @@ public class EarthLine extends EarthAbility implements AddonAbility {
             return false;
         } else if (TempBlock.isTempBlock(block) && !EarthAbility.isBendableEarthTempBlock(block)) {
             return false;
-        } else if (EarthAbility.getMovedEarth().containsKey(block)) {
-            return false;
         }
 
         boolean selectedABlockInUse = false;
@@ -140,16 +139,16 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 
 		if (this.sourceBlock.getType() == Material.SAND) {
 			this.sourceType = Material.SAND;
-			sourceTempBlock = new TempBlock(sourceBlock, Material.SANDSTONE.createBlockData());
+			sourceTempBlock = JCMethods.createTempBlock(sourceBlock, Material.SANDSTONE.createBlockData());
 		} else if (this.sourceBlock.getType() == Material.RED_SAND) {
 			this.sourceType = Material.RED_SAND;
-			sourceTempBlock = new TempBlock(sourceBlock, Material.RED_SANDSTONE.createBlockData());
+			sourceTempBlock = JCMethods.createTempBlock(sourceBlock, Material.RED_SANDSTONE.createBlockData());
 		} else if (this.sourceBlock.getType() == Material.STONE) {
 			this.sourceType = Material.STONE;
-			sourceTempBlock = new TempBlock(sourceBlock, Material.COBBLESTONE.createBlockData());
+			sourceTempBlock = JCMethods.createTempBlock(sourceBlock, Material.COBBLESTONE.createBlockData());
 		} else {
 			this.sourceType = this.sourceBlock.getType();
-			sourceTempBlock = new TempBlock(sourceBlock, Material.STONE.createBlockData());
+			sourceTempBlock = JCMethods.createTempBlock(sourceBlock, Material.STONE.createBlockData());
 		}
 
 		this.location = this.sourceBlock.getLocation();
@@ -257,7 +256,7 @@ public class EarthLine extends EarthAbility implements AddonAbility {
 			playEarthbendingSound(location);
 
 			if (isEarthbendable(location.getBlock())) {
-				new TempBlock(location.getBlock(), Material.AIR.createBlockData(), 700L);
+				JCMethods.createTempBlock(location.getBlock(), Material.AIR.createBlockData(), 700L);
 				new TempFallingBlock(locationYUP, cloneType.createBlockData(), new Vector(0.0, 0.35, 0.0), this);
 			}
 

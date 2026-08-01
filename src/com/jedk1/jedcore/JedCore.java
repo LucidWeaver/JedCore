@@ -142,7 +142,9 @@ public class JedCore extends JavaPlugin {
 	}
 	
 	public void onDisable() {
+		JCMethods.revertCompatibleTempBlocks();
 		RegenTempBlock.revertAll();
+		JCMethods.releaseAllMovedEarthProtection();
 	}
 
 	public static void logDebug(String message) {

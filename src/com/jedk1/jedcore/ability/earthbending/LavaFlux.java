@@ -1,16 +1,15 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.firebending.util.FireDamageTimer;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
-import com.projectkorra.projectkorra.util.Information;
 
 import com.projectkorra.projectkorra.util.TempBlock;
 import org.bukkit.Location;
@@ -138,7 +137,7 @@ public class LavaFlux extends LavaAbility implements AddonAbility {
 			while (bi.hasNext()) {
 				Block b = bi.next();
 
-				if (b.getY() > b.getWorld().getMinHeight() && b.getY() < b.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, b.getLocation()) && !EarthAbility.getMovedEarth().containsKey(b)) {
+				if (b.getY() > b.getWorld().getMinHeight() && b.getY() < b.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, b.getLocation())) {
 					if (isWater(b)) break;
 					while (!isEarthbendable(player, b)) {
 						b = b.getRelative(BlockFace.DOWN);
@@ -180,7 +179,7 @@ public class LavaFlux extends LavaAbility implements AddonAbility {
 		for (Location location : flux) {
 			if (flux.indexOf(location) <= step) {
 				if (!blocks.containsKey(location.getBlock())) { //Make a new temp block if we haven't made one there before
-					blocks.put(location.getBlock(), new TempBlock(location.getBlock(), LAVA, duration + cleanup, this));
+					blocks.put(location.getBlock(), JCMethods.createTempBlock(location.getBlock(), LAVA, duration + cleanup, this));
 				}
 
 				//new RegenTempBlock(location.getBlock(), Material.LAVA, LAVA, duration + cleanup);
@@ -193,15 +192,15 @@ public class LavaFlux extends LavaAbility implements AddonAbility {
 					if (isPlant(above) || isSnow(above)) {
 						final Block above2 = above.getRelative(BlockFace.UP);
 						if (isPlant(above) || isSnow(above)) {
-							TempBlock tb = new TempBlock(above, Material.AIR.createBlockData(), duration + cleanup, this);
+							TempBlock tb = JCMethods.createTempBlock(above, Material.AIR.createBlockData(), duration + cleanup, this);
 							this.above.put(above, tb);
 							if (isPlant(above2) && above2.getBlockData() instanceof Bisected) {
-								TempBlock tb2 = new TempBlock(above2, Material.AIR.createBlockData(), duration + cleanup + 30_000, this);
+								TempBlock tb2 = JCMethods.createTempBlock(above2, Material.AIR.createBlockData(), duration + cleanup + 30_000, this);
 								tb.addAttachedBlock(tb2);
 							}
 						}
 					} else if (wave && isTransparent(above)) {
-						new TempBlock(location.getBlock().getRelative(BlockFace.UP), LAVA, speed * 150L, this);
+						JCMethods.createTempBlock(location.getBlock().getRelative(BlockFace.UP), LAVA, speed * 150L, this);
 					}
 				}
 			}
@@ -240,13 +239,6 @@ public class LavaFlux extends LavaAbility implements AddonAbility {
 
 	private void expand(Block block) {
 		if (block != null && block.getY() > block.getWorld().getMinHeight() && block.getY() < block.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, block.getLocation())) {
-			if (EarthAbility.getMovedEarth().containsKey(block)){
-				Information info = EarthAbility.getMovedEarth().get(block);
-				if(!info.getBlock().equals(block)) {
-					return;
-				}
-			}
-
 			if (isWater(block)) return;
 			while (!isEarthbendable(block)) {
 				block = block.getRelative(BlockFace.DOWN);

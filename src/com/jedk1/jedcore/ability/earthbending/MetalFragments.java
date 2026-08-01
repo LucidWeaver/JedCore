@@ -1,10 +1,10 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
-import com.projectkorra.projectkorra.ability.EarthAbility;
 import com.projectkorra.projectkorra.ability.MetalAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -20,6 +20,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.FallingBlock;
@@ -55,6 +56,8 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 	private final List<TempBlock> tblockTracker = new ArrayList<>();
 	//private List<FallingBlock> fblockTracker = new ArrayList<>();
 	private final HashMap<Block, Integer> counters = new HashMap<>();
+	private final HashMap<TempFallingBlock, SourceReservation> pendingSources = new HashMap<>();
+	private final HashMap<TempBlock, SourceReservation> sourceReservations = new HashMap<>();
 
 	public MetalFragments(Player player) {
 		super(player);
@@ -70,7 +73,7 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 		
 		setFields();
 
-		if (tblockTracker.size() >= maxSources) {
+		if (!hasSourceCapacity()) {
 			return;
 		}
 
@@ -147,13 +150,14 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 			count++;
 
 			if (count >= maxFragments) {
-				counters.remove(source);
-				source.getWorld().spawnFallingBlock(source.getLocation().add(0.5, 0, 0.5), source.getBlockData());
-				TempBlock tempBlock = TempBlock.get(source);
+				TempBlock tempBlock = findTrackedSource(source);
 				if (tempBlock != null) {
-					tempBlock.revertBlock();
+					dropSource(tempBlock);
+					tblockTracker.remove(tempBlock);
+				} else {
+					counters.remove(source);
+					sources.remove(source);
 				}
-				sources.remove(source);
 				source.getWorld().playSound(source.getLocation(), Sound.ENTITY_ITEM_BREAK, 10, 5);
 			} else {
 				counters.put(source, count);
@@ -172,7 +176,7 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 	}
 
 	private void selectAnotherSource() {
-		if (tblockTracker.size() >= maxSources)
+		if (!hasSourceCapacity())
 			return;
 
 		if (prepare()) {
@@ -187,23 +191,25 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 		if (block == null)
 			return false;
 
-		if (EarthAbility.getMovedEarth().containsKey(block))
+		if (!isMetal(block))
 			return false;
 
-		return isMetal(block);
+		return true;
 	}
 
 	public Block selectSource() {
 		Block block = BlockSource.getEarthSourceBlock(player, selectRange, ClickType.SHIFT_DOWN);
-		if (EarthAbility.getMovedEarth().containsKey(block))
-			return null;
-		if (isMetal(block))
+		if (isMetal(block)) {
 			return block;
+		}
 		return null;
 	}
 
 	public void translateUpward(Block block) {
 		if (block == null)
+			return;
+
+		if (!hasSourceCapacity())
 			return;
 
 		if (sources.contains(block))
@@ -213,11 +219,30 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 			return;
 
 		if (isEarthbendable(player, block)) {
-			new TempFallingBlock(block.getLocation().add(0.5, 0, 0.5), block.getBlockData(), new Vector(0, 0.8, 0), this);
-			block.setType(Material.AIR);
+			BlockData sourceData = block.getBlockData().clone();
+			TempFallingBlock fallingBlock = null;
+			TempBlock sourceOrigin = null;
+			try {
+				fallingBlock = new TempFallingBlock(block.getLocation().add(0.5, 0, 0.5), sourceData, new Vector(0, 0.8, 0), this);
+				sourceOrigin = JCMethods.createTempBlock(block, Material.AIR.createBlockData());
+				pendingSources.put(fallingBlock, new SourceReservation(sourceOrigin));
+			} catch (RuntimeException | Error exception) {
+				if (fallingBlock != null) {
+					fallingBlock.remove();
+				}
+				if (sourceOrigin != null) {
+					sourceOrigin.revertBlock();
+				}
+				throw exception;
+			}
 
 			playMetalbendingSound(block.getLocation());
 		}
+	}
+
+	private boolean hasSourceCapacity() {
+		cleanupFinishedPendingSources();
+		return tblockTracker.size() + pendingSources.size() < maxSources;
 	}
 
 	public void progress() {
@@ -237,27 +262,39 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 		while (itr.hasNext()) {
 			TempBlock tb = itr.next();
 			if (player.getLocation().distance(tb.getLocation()) >= 10) {
-				player.getWorld().spawnFallingBlock(tb.getLocation().add(0.5,0.0,0.5), tb.getBlockData());
-				sources.remove(tb.getBlock());
-				tb.revertBlock();
+				dropSource(tb);
 				itr.remove();
 			}
 		}
 
-		for (TempFallingBlock tfb : TempFallingBlock.getFromAbility(this)) {
+		cleanupFinishedPendingSources();
+		Iterator<TempFallingBlock> pendingIterator = pendingSources.keySet().iterator();
+		while (pendingIterator.hasNext()) {
+			TempFallingBlock tfb = pendingIterator.next();
+			SourceReservation reservation = pendingSources.get(tfb);
 			FallingBlock fb = tfb.getFallingBlock();
+			if (fb.isOnGround()) {
+				pendingIterator.remove();
+				tfb.remove();
+				reservation.restoreSource();
+				continue;
+			}
 			if (fb.getLocation().getY() >= player.getEyeLocation().getY() + 1) {
 				Block block = fb.getLocation().getBlock();
-				TempBlock tb = new TempBlock(block, fb.getBlockData());
-
-				tblockTracker.add(tb);
-				sources.add(tb.getBlock());
-				counters.put(tb.getBlock(), 0);
-				tfb.remove();
-			}
-
-			if (fb.isOnGround()) {
-				fb.getLocation().getBlock().setBlockData(fb.getBlockData());
+				try {
+					TempBlock tb = JCMethods.createTempBlock(block, fb.getBlockData());
+					pendingIterator.remove();
+					sourceReservations.put(tb, reservation);
+					tblockTracker.add(tb);
+					sources.add(tb.getBlock());
+					counters.put(tb.getBlock(), 0);
+					tfb.remove();
+				} catch (RuntimeException | Error exception) {
+					pendingIterator.remove();
+					tfb.remove();
+					reservation.restoreSource();
+					throw exception;
+				}
 			}
 		}
 		for (ListIterator<Item> iterator = thrownFragments.listIterator(); iterator.hasNext();) {
@@ -271,16 +308,8 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 				}
 			}
 			if (touchedLiving || f.isOnGround() || f.isDead()) {
-				f.getLocation().getWorld().spawnParticle(
-						Particle.ITEM_CRACK,
-						f.getLocation(),
-						3,
-						0.3, 0.3, 0.3,
-						0.2,
-						f
-				);
-				f.remove();
 				iterator.remove();
+				removeFragment(f);
 			}
 		}
 
@@ -302,26 +331,72 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 
 	public void dropSources() {
 		for (TempBlock tb : tblockTracker) {
-			tb.getBlock().getWorld().spawnFallingBlock(tb.getLocation().add(0.5,0.0,0.5), tb.getBlock().getBlockData());
-			tb.revertBlock();
+			dropSource(tb);
 		}
 
 		tblockTracker.clear();
+		cancelPendingSources();
+	}
+
+	private TempBlock findTrackedSource(Block source) {
+		for (TempBlock tempBlock : tblockTracker) {
+			if (tempBlock.getBlock().equals(source)) {
+				return tempBlock;
+			}
+		}
+		return null;
+	}
+
+	private void dropSource(TempBlock tempBlock) {
+		Block source = tempBlock.getBlock();
+		SourceReservation reservation = sourceReservations.remove(tempBlock);
+		try {
+			tempBlock.revertBlock();
+		} finally {
+			if (reservation != null) {
+				reservation.restoreSource();
+			}
+			sources.remove(source);
+			counters.remove(source);
+		}
+	}
+
+	private void cleanupFinishedPendingSources() {
+		Iterator<TempFallingBlock> iterator = pendingSources.keySet().iterator();
+		while (iterator.hasNext()) {
+			TempFallingBlock tempFallingBlock = iterator.next();
+			FallingBlock fallingBlock = tempFallingBlock.getFallingBlock();
+			if (!fallingBlock.isDead() && TempFallingBlock.isTempFallingBlock(fallingBlock)) {
+				continue;
+			}
+			SourceReservation reservation = pendingSources.get(tempFallingBlock);
+			iterator.remove();
+			reservation.restoreSource();
+		}
+	}
+
+	private void cancelPendingSources() {
+		for (TempFallingBlock tempFallingBlock : pendingSources.keySet()) {
+			tempFallingBlock.remove();
+			pendingSources.get(tempFallingBlock).restoreSource();
+		}
+		pendingSources.clear();
 	}
 
 	public void removeFragments() {
-		for (Item i : thrownFragments) {
-			i.getLocation().getWorld().spawnParticle(
-					Particle.ITEM_CRACK,
-					i.getLocation(),
-					3,
-					0.3, 0.3, 0.3,
-					0.2,
-					i
-			);
-			i.remove();
+		List<FragmentParticle> particles = new ArrayList<>(thrownFragments.size());
+		for (Item fragment : thrownFragments) {
+			particles.add(new FragmentParticle(fragment.getLocation(), fragment.getItemStack().clone()));
+			fragment.remove();
 		}
 		thrownFragments.clear();
+		particles.forEach(FragmentParticle::spawn);
+	}
+
+	private void removeFragment(Item fragment) {
+		FragmentParticle particle = new FragmentParticle(fragment.getLocation(), fragment.getItemStack().clone());
+		fragment.remove();
+		particle.spawn();
 	}
 
 	public static void remove(Player player, Block block) {
@@ -335,13 +410,49 @@ public class MetalFragments extends MetalAbility implements AddonAbility {
 
 	@Override
 	public void remove() {
-		dropSources();
-		removeFragments();
-		removeDeadItems();
-		if (player.isOnline()) {
-			bPlayer.addCooldown(this);
+		try {
+			dropSources();
+			removeFragments();
+			removeDeadItems();
+			if (player.isOnline()) {
+				bPlayer.addCooldown(this);
+			}
+		} finally {
+			super.remove();
 		}
-		super.remove();
+	}
+
+	private static final class FragmentParticle {
+		private final Location location;
+		private final ItemStack itemStack;
+
+		private FragmentParticle(Location location, ItemStack itemStack) {
+			this.location = location;
+			this.itemStack = itemStack;
+		}
+
+		private void spawn() {
+			location.getWorld().spawnParticle(
+					Particle.ITEM_CRACK,
+					location,
+					3,
+					0.3, 0.3, 0.3,
+					0.2,
+					itemStack
+			);
+		}
+	}
+
+	private static final class SourceReservation {
+		private final TempBlock sourceOrigin;
+
+		private SourceReservation(TempBlock sourceOrigin) {
+			this.sourceOrigin = sourceOrigin;
+		}
+
+		private void restoreSource() {
+			sourceOrigin.revertBlock();
+		}
 	}
 	
 	@Override

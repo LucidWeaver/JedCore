@@ -1,5 +1,6 @@
 package com.jedk1.jedcore.util;
 
+import com.jedk1.jedcore.JCMethods;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
 import com.projectkorra.projectkorra.util.TempBlock;
 import org.bukkit.Material;
@@ -17,6 +18,7 @@ public class RegenTempBlock {
 	public static Map<Block, RegenBlockData> blocks = new HashMap<>();
 	public static Map<Block, TempBlock> temps = new HashMap<>();
 	public static Map<Block, BlockState> states = new HashMap<>();
+	private static final Map<Block, JCMethods.MovedEarthLease> movedEarthLeases = new HashMap<>();
 
 	/**
 	 * Creates a TempBlock that reverts after a delay.
@@ -42,11 +44,20 @@ public class RegenTempBlock {
 	}
 
 	public RegenTempBlock(Block block, Material material, BlockData data, long delay, boolean temp, RegenCallback callback) {
+		if (JCMethods.isProjectKorraReloading()) {
+			return;
+		}
 		if (DensityShift.isPassiveSand(block)) {
 			DensityShift.revertSand(block);
 		}
 		if (block.getState() instanceof InventoryHolder || block.getType() == Material.JUKEBOX) {
 			return;
+		}
+
+		JCMethods.MovedEarthLease lease = JCMethods.protectMovedEarth(block);
+		JCMethods.MovedEarthLease previousLease = movedEarthLeases.put(block, lease);
+		if (previousLease != null) {
+			previousLease.close();
 		}
 		if (blocks.containsKey(block)) {
 			blocks.replace(block, new RegenBlockData(System.currentTimeMillis() + delay, callback));
@@ -94,6 +105,7 @@ public class RegenTempBlock {
 				}
 
 				iterator.remove();
+				releaseMovedEarth(b);
 
 				if (blockData.callback != null) {
 					blockData.callback.onRegen(b);
@@ -118,6 +130,7 @@ public class RegenTempBlock {
 				states.remove(block);
 			}
 			blocks.remove(block);
+			releaseMovedEarth(block);
 		}
 	}
 
@@ -137,6 +150,17 @@ public class RegenTempBlock {
 		temps.clear();
 		states.clear();
 		blocks.clear();
+		for (JCMethods.MovedEarthLease lease : movedEarthLeases.values()) {
+			lease.close();
+		}
+		movedEarthLeases.clear();
+	}
+
+	private static void releaseMovedEarth(Block block) {
+		JCMethods.MovedEarthLease lease = movedEarthLeases.remove(block);
+		if (lease != null) {
+			lease.close();
+		}
 	}
 	
 	/**

@@ -1,6 +1,7 @@
 package com.jedk1.jedcore.ability.earthbending;
 
 import com.jedk1.jedcore.JedCore;
+import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.collision.CollisionUtil;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.policies.removal.CannotBendRemovalPolicy;
@@ -211,7 +212,7 @@ public class MudSurge extends EarthAbility implements AddonAbility {
 	}
 
 	private boolean isValidMudSource(Block block) {
-		return block != null && !EarthAbility.getMovedEarth().containsKey(block);
+		return block != null;
 	}
 
 	private void startSurge() {
@@ -297,7 +298,7 @@ public class MudSurge extends EarthAbility implements AddonAbility {
 	}
 
 	private void createMud(Block block) {
-		mudBlocks.add(new TempBlock(block, mudType.createBlockData()));
+		mudBlocks.add(JCMethods.createTempBlock(block, mudType.createBlockData()));
 	}
 
 	private void loadMudPool() {
