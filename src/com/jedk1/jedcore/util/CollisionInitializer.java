@@ -70,7 +70,6 @@ public class CollisionInitializer<T extends CoreAbility> {
 
         for (String key : section.getKeys(false)) {
             if (key.equalsIgnoreCase("Enabled") || key.equalsIgnoreCase("Group")) continue;
-            if (key.equalsIgnoreCase("-small-") || key.equalsIgnoreCase("-large-")) continue;
 
             ConfigurationSection abilityConfig = section.getConfigurationSection(key);
             if (abilityConfig == null) continue;
@@ -121,11 +120,9 @@ public class CollisionInitializer<T extends CoreAbility> {
         if (section == null) return false;
         if (section.contains("Enabled") && !section.getBoolean("Enabled")) return false;
 
-        boolean groupConfigured = false;
         for (String groupName : getConfiguredGroups()) {
             if (groupName == null || groupName.isBlank()) continue;
 
-            groupConfigured = true;
             CollisionGroup group = CollisionGroup.fromConfig(groupName);
             if (group == null) {
                 JedCore.log.warning("Unknown collision group '" + groupName + "' for " + abilityName
@@ -133,11 +130,6 @@ public class CollisionInitializer<T extends CoreAbility> {
                 continue;
             }
             groups.add(group);
-        }
-
-        if (!groupConfigured) {
-            if (isLegacyGroupEnabled("-small-")) groups.add(CollisionGroup.SMALL);
-            if (isLegacyGroupEnabled("-large-")) groups.add(CollisionGroup.LARGE);
         }
 
         active = true;
@@ -151,11 +143,6 @@ public class CollisionInitializer<T extends CoreAbility> {
 
         String group = section.getString("Group");
         return group == null ? List.of() : List.of(group);
-    }
-
-    private boolean isLegacyGroupEnabled(String key) {
-        ConfigurationSection legacyGroup = section.getConfigurationSection(key);
-        return legacyGroup != null && legacyGroup.getBoolean("Enabled");
     }
 
     private void initializeGroup(CollisionGroup group) {

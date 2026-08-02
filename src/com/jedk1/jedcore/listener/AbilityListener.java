@@ -153,6 +153,15 @@ public class AbilityListener implements Listener {
 			return;
 		}
 
+		if (coreAbil instanceof EarthAbility && bPlayer.isElementToggled(Element.EARTH)) {
+			if (GeneralMethods.isWeapon(player.getInventory().getItemInMainHand().getType()) && !ProjectKorra.plugin.getConfig().getBoolean("Properties.Earth.CanBendWithWeapons")) {
+				return;
+			}
+			if (coreAbil.getClass().equals(EarthPillar.class) && !recentlyDropped.contains(player.getUniqueId())) {
+				EarthPillar.toggleMode(player);
+			}
+		}
+
 		if (coreAbil instanceof FireAbility && bPlayer.isElementToggled(Element.FIRE)) {
 			if (GeneralMethods.isWeapon(player.getInventory().getItemInMainHand().getType()) && !ProjectKorra.plugin.getConfig().getBoolean("Properties.Fire.CanBendWithWeapons")) {
 				return;
@@ -468,7 +477,7 @@ public class AbilityListener implements Listener {
 					new EarthLine(player);
 				}
 				if (abilClass.equals(EarthPillar.class)) {
-					new EarthPillar(player);
+					EarthPillar.activate(player);
 				}
 				if (abilClass.equals(EarthShard.class)) {
 					new EarthShard(player);

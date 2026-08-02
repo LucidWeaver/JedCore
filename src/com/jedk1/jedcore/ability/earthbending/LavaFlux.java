@@ -421,15 +421,7 @@ public class LavaFlux extends LavaAbility implements AddonAbility {
 	}
 
 	@Override
-	public void load() {
-		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
-
-		if (config.get("Abilities.Earth.LavaFlux.Speed") instanceof String) {
-			config.set("Abilities.Earth.LavaFlux.Speed", 1);
-			JedCore.plugin.saveConfig();
-			JedCore.plugin.reloadConfig();
-		}
-	}
+	public void load() {}
 
 	@Override
 	public void stop() {}

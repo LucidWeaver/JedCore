@@ -266,22 +266,9 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Air.AirCombo.SwiftStream.Instructions", "Flight (Double tap sneak)");
 		
 		String earthArmorPath = "Abilities.Earth.EarthArmor";
-		String oldUseIronArmorPath = earthArmorPath + ".UseIronArmor";
 		String useMetalArmorPath = earthArmorPath + ".UseMetalArmor";
 		String resistancePath = earthArmorPath + ".Resistance";
 		String resistanceDurationPath = resistancePath + ".Duration";
-		if (config.isSet(oldUseIronArmorPath)) {
-			if (!config.isSet(useMetalArmorPath + ".Enabled")) {
-				config.set(useMetalArmorPath + ".Enabled", config.getBoolean(oldUseIronArmorPath));
-			}
-			config.set(oldUseIronArmorPath, null);
-		}
-		if (config.isSet(resistanceDurationPath) && !config.isConfigurationSection(resistanceDurationPath)) {
-			int oldResistanceDuration = config.getInt(resistanceDurationPath);
-			config.set(resistanceDurationPath, null);
-			config.set(resistanceDurationPath + ".Enabled", false);
-			config.set(resistanceDurationPath + ".Value", oldResistanceDuration);
-		}
 
 		config.addDefault(earthArmorPath + ".Enabled", true);
 		config.addDefault(earthArmorPath + ".Description", "Using a metal source with EarthArmor grants Resistance and stronger armor matching the metal.");
@@ -355,15 +342,7 @@ public class JedCoreConfig {
 				+ "your foe!");
 		config.addDefault("Abilities.Earth.EarthKick.Cooldown", 2000);
 		config.addDefault("Abilities.Earth.EarthKick.EarthBlocks", 10);
-
-		Object oldDamage = config.get("Abilities.Earth.EarthKick.Damage");
-		if (oldDamage instanceof Number number) {
-			config.set("Abilities.Earth.EarthKick.Damage", null);
-			config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", number.doubleValue());
-		} else {
-			config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", 2.0);
-		}
-
+		config.addDefault("Abilities.Earth.EarthKick.Damage.Normal", 2.0);
 		config.addDefault("Abilities.Earth.EarthKick.Damage.Metal", 3.0);
 		config.addDefault("Abilities.Earth.EarthKick.EntityCollisionRadius", 1.5);
 		config.addDefault("Abilities.Earth.EarthKick.AbilityCollisionRadius", 1.5);
@@ -414,10 +393,17 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthLine.RemovalPolicy.SwappedSlots.Enabled", false);
 		
 		config.addDefault("Abilities.Earth.EarthPillar.Enabled", true);
-		config.addDefault("Abilities.Earth.EarthPillar.Description", "With this ability bound, tap Sneak (Default: Shift) on any Earthbendable "
-				+ "surface to create pillar of earth in the direction of the block face!");
+		config.addDefault("Abilities.Earth.EarthPillar.Description", "With this ability bound, Single mode is selected by default. "
+				+ "Left-Click to switch between Single and Wall modes. In Single mode, press Sneak (Default: Shift) on an Earthbendable "
+				+ "surface to create or collapse one pillar. In Wall mode, hold Sneak to continuously raise a connected wall along the "
+				+ "Earthbendable surfaces you look across!");
+		config.addDefault("Abilities.Earth.EarthPillar.Cooldown", 0);
 		config.addDefault("Abilities.Earth.EarthPillar.Height", 6);
 		config.addDefault("Abilities.Earth.EarthPillar.Range", 10);
+		config.addDefault("Abilities.Earth.EarthPillar.Speed", 60.0);
+		config.addDefault("Abilities.Earth.EarthPillar.MaxPillars", 16);
+		config.addDefault("Abilities.Earth.EarthPillar.AutoMode.Enabled", true);
+		config.addDefault("Abilities.Earth.EarthPillar.AutoMode.Interval", 0);
 		
 		config.addDefault("Abilities.Earth.EarthShard.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthShard.Description", "EarthShard is a variation of EarthBlast "
