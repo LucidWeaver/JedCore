@@ -221,6 +221,7 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 		playEarthbendingSound(location);
 
 		ThreadLocalRandom rand = ThreadLocalRandom.current();
+		BlockData projectileData = isLava(materialData.getMaterial()) ? Material.MAGMA_BLOCK.createBlockData() : materialData;
 
 		for (int i = 0; i < earthBlocks; i++) {
 			location.setYaw(yaw + rand.nextInt((spread * 2) + 1) - spread);
@@ -228,7 +229,7 @@ public class EarthKick extends EarthAbility implements AddonAbility {
 
 			Vector dir = location.getDirection().multiply(velocity);
 
-			temps.add(new TempFallingBlock(location, materialData, dir, this));
+			temps.add(new TempFallingBlock(location, projectileData, dir, this));
 		}
 	}
 

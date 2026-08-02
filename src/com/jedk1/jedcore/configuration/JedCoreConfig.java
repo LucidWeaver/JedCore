@@ -406,17 +406,16 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthPillar.AutoMode.Interval", 0);
 		
 		config.addDefault("Abilities.Earth.EarthShard.Enabled", true);
-		config.addDefault("Abilities.Earth.EarthShard.Description", "EarthShard is a variation of EarthBlast "
-				+ "which the earthbender may use to hit a target. This "
-				+ "ability deals a fair amount of damage and is easy to "
-				+ "rapid-fire. To use, simply shift at an earthbendable block, "
-				+ "and it will ascend to your eye height. Then, click towards your "
-				+ "target and the block will launch itself towards it.");
+		config.addDefault("Abilities.Earth.EarthShard.Description", "EarthShard is a variation of EarthBlast that allows an earthbender "
+				+ "to prepare several pieces of earth before attacking. Sneak while looking at earthbendable blocks to raise shards to eye height, "
+				+ "then Left-Click toward a target to launch them in a straight line. Touching shards fly as one and strike with their combined force, "
+				+ "while separated shards are fired one at a time, starting with the shard closest to your target. Shards that travel beyond their range begin to fall.");
 		config.addDefault("Abilities.Earth.EarthShard.Cooldown", 1000);
 		config.addDefault("Abilities.Earth.EarthShard.Damage.Normal", 1.0);
 		config.addDefault("Abilities.Earth.EarthShard.Damage.Metal", 1.5);
 		config.addDefault("Abilities.Earth.EarthShard.PrepareRange", 5);
 		config.addDefault("Abilities.Earth.EarthShard.AbilityRange", 30);
+		config.addDefault("Abilities.Earth.EarthShard.Speed", 2.0);
 		config.addDefault("Abilities.Earth.EarthShard.MaxShards", 3);
 		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Others.Allow", true);
 		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Others.Velocity", 1.0);
@@ -424,8 +423,6 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Self.Allow", true);
 		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Self.Velocity", 1.0);
 		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Self.Range", 1.5);
-//		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Allow", true);
-//		config.addDefault("Abilities.Earth.EarthShard.KnockUp.Velocity", 1.0);
 		config.addDefault("Abilities.Earth.EarthShard.AbilityCollisionRadius", 2.0);
 		config.addDefault("Abilities.Earth.EarthShard.Collisions.Enabled", true);
 		config.addDefault("Abilities.Earth.EarthShard.Collisions.Group", Arrays.asList("Small"));
@@ -1146,7 +1143,7 @@ public class JedCoreConfig {
 		//Earth
 		lang.addDefault("Abilities.Earth.EarthKick.DeathMessage", "{victim} got too much dirt in their eye from {attacker}'s {ability}");
 		lang.addDefault("Abilities.Earth.EarthLine.DeathMessage", "{victim} lost their footing from {attacker}'s {ability}");
-		lang.addDefault("Abilities.Earth.EarthShard.DeathMessage", "{victim} got blasted apart {attacker}'s {ability}");
+		lang.addDefault("Abilities.Earth.EarthShard.DeathMessage", "{victim} got blasted apart by {attacker}'s {ability}");
 		lang.addDefault("Abilities.Earth.LavaDisc.DeathMessage", "{victim} sliced in half by {attacker}'s {ability}");
 		lang.addDefault("Abilities.Earth.LavaFlux.DeathMessage", "{victim} couldn't take the heat from {attacker}'s {ability}");
 		lang.addDefault("Abilities.Earth.LavaThrow.DeathMessage", "{victim} melted from {attacker}'s {ability}");

@@ -16,6 +16,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Levelled;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -124,7 +125,10 @@ public class WaterBlast extends WaterAbility implements AddonAbility {
 				AABB collider = AABB.BlockBounds.at(location).scale(entityCollisionRadius * 2);
 
 				boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), collider, (entity) -> {
-					DamageHandler.damageEntity(entity, damage, ability);
+					LivingEntity target = (LivingEntity) entity;
+					target.setNoDamageTicks(0);
+					DamageHandler.damageEntity(target, damage, ability);
+					target.setNoDamageTicks(0);
 					return true;
 				});
 

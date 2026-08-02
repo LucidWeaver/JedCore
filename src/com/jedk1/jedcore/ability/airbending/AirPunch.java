@@ -14,6 +14,7 @@ import com.projectkorra.projectkorra.util.DamageHandler;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -203,7 +204,10 @@ public class AirPunch extends AirAbility implements AddonAbility {
 
 	private boolean checkAndHandleCollision(Location location) {
 		return CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), entityCollisionRadius), entity -> {
-			DamageHandler.damageEntity(entity, damage, this);
+			LivingEntity target = (LivingEntity) entity;
+			target.setNoDamageTicks(0);
+			DamageHandler.damageEntity(target, damage, this);
+			target.setNoDamageTicks(0);
 			return true;
 		});
 	}
