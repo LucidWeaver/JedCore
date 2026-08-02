@@ -71,6 +71,7 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 	private Location origin;
 	private double abilityCollisionRadius;
 	private double entityCollisionRadius;
+	private boolean resetNoDamageTicks;
 
 	private final List<TempBlock> tblockTracker = new ArrayList<>();
 	private final List<TempBlock> readyBlocksTracker = new ArrayList<>();
@@ -157,6 +158,7 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 		speed = config.getDouble("Abilities.Earth.EarthShard.Speed");
 		normalDmg = config.getDouble("Abilities.Earth.EarthShard.Damage.Normal");
 		metalDmg = config.getDouble("Abilities.Earth.EarthShard.Damage.Metal");
+		resetNoDamageTicks = config.getBoolean("Abilities.Earth.EarthShard.ResetNoDamageTicks");
 		maxShards = config.getInt("Abilities.Earth.EarthShard.MaxShards");
 		cooldown = config.getLong("Abilities.Earth.EarthShard.Cooldown");
 		abilityCollisionRadius = config.getDouble("Abilities.Earth.EarthShard.AbilityCollisionRadius");
@@ -398,9 +400,13 @@ public class EarthShard extends EarthAbility implements AddonAbility {
 
 					double damage = flight.normalShards * normalDmg + flight.metalShards * metalDmg;
 					LivingEntity target = (LivingEntity) entity;
-					target.setNoDamageTicks(0);
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
 					DamageHandler.damageEntity(target, damage, this);
-					target.setNoDamageTicks(0);
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
 					displayFlightImpact(flight);
 					removeFlight(flight);
 					consumed[0] = true;

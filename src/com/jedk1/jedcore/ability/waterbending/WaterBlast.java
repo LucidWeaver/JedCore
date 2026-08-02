@@ -3,6 +3,7 @@ package com.jedk1.jedcore.ability.waterbending;
 import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.collision.AABB;
 import com.jedk1.jedcore.collision.CollisionDetector;
+import com.jedk1.jedcore.configuration.JedCoreConfig;
 import com.jedk1.jedcore.util.CollisionInitializer;
 import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
@@ -25,6 +26,7 @@ public class WaterBlast extends WaterAbility implements AddonAbility {
 	private Location location;
 	private Vector direction;
 	private final Ability ability;
+	private final boolean resetNoDamageTicks;
 	private double travelled;
 
 	@Attribute(Attribute.RANGE)
@@ -49,6 +51,7 @@ public class WaterBlast extends WaterAbility implements AddonAbility {
 		this.damage = damage;
 		this.speed = speed;
 		this.ability = ability;
+		this.resetNoDamageTicks = JedCoreConfig.getConfig(player).getBoolean("Abilities.Water.WaterCombo.WaterGimbal.ResetNoDamageTicks");
 		this.location = origin;
 		this.entityCollisionRadius = entityCollisionRadius;
 		this.abilityCollisionRadius = abilityCollisionRadius;
@@ -126,9 +129,13 @@ public class WaterBlast extends WaterAbility implements AddonAbility {
 
 				boolean hit = CollisionDetector.checkEntityCollisions(player, location.getWorld(), collider, (entity) -> {
 					LivingEntity target = (LivingEntity) entity;
-					target.setNoDamageTicks(0);
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
 					DamageHandler.damageEntity(target, damage, ability);
-					target.setNoDamageTicks(0);
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
 					return true;
 				});
 

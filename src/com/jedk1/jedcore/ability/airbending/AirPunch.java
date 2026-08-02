@@ -32,6 +32,7 @@ public class AirPunch extends AirAbility implements AddonAbility {
 	@Attribute(Attribute.COOLDOWN)
 	private long cooldown;
 	private long threshold;
+	private boolean resetNoDamageTicks;
 	@Attribute(Attribute.RANGE)
 	private double range;
 	@Attribute(Attribute.DAMAGE)
@@ -78,6 +79,7 @@ public class AirPunch extends AirAbility implements AddonAbility {
 		shots = config.getInt("Abilities.Air.AirPunch.Shots");
 		range = config.getDouble("Abilities.Air.AirPunch.Range");
 		damage = config.getDouble("Abilities.Air.AirPunch.Damage");
+		resetNoDamageTicks = config.getBoolean("Abilities.Air.AirPunch.ResetNoDamageTicks");
 		entityCollisionRadius = config.getDouble("Abilities.Air.AirPunch.EntityCollisionRadius");
 		speed = config.getDouble("Abilities.Air.AirPunch.Speed");
 	}
@@ -205,9 +207,13 @@ public class AirPunch extends AirAbility implements AddonAbility {
 	private boolean checkAndHandleCollision(Location location) {
 		return CollisionDetector.checkEntityCollisions(player, location.getWorld(), new Sphere(location.toVector(), entityCollisionRadius), entity -> {
 			LivingEntity target = (LivingEntity) entity;
-			target.setNoDamageTicks(0);
+			if (resetNoDamageTicks) {
+				target.setNoDamageTicks(0);
+			}
 			DamageHandler.damageEntity(target, damage, this);
-			target.setNoDamageTicks(0);
+			if (resetNoDamageTicks) {
+				target.setNoDamageTicks(0);
+			}
 			return true;
 		});
 	}

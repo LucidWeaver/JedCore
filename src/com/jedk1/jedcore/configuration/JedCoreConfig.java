@@ -199,6 +199,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Air.AirPunch.Shots", 4);
 		config.addDefault("Abilities.Air.AirPunch.Range", 30);
 		config.addDefault("Abilities.Air.AirPunch.Damage", 1.0);
+		config.addDefault("Abilities.Air.AirPunch.ResetNoDamageTicks", true);
 		config.addDefault("Abilities.Air.AirPunch.Speed", 1.0);
 		config.addDefault("Abilities.Air.AirPunch.EntityCollisionRadius", 1.0);
 		config.addDefault("Abilities.Air.AirPunch.AbilityCollisionRadius", 1.0);
@@ -413,6 +414,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.EarthShard.Cooldown", 1000);
 		config.addDefault("Abilities.Earth.EarthShard.Damage.Normal", 1.0);
 		config.addDefault("Abilities.Earth.EarthShard.Damage.Metal", 1.5);
+		config.addDefault("Abilities.Earth.EarthShard.ResetNoDamageTicks", true);
 		config.addDefault("Abilities.Earth.EarthShard.PrepareRange", 5);
 		config.addDefault("Abilities.Earth.EarthShard.AbilityRange", 30);
 		config.addDefault("Abilities.Earth.EarthShard.Speed", 2.0);
@@ -1045,6 +1047,7 @@ public class JedCoreConfig {
 				+ "which can be used as a defensive ability or for an offensive attack.");
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Cooldown", 7000);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Damage", 3.0);
+		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.ResetNoDamageTicks", true);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.RingSize", 3.5);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.Range", 40);
 		config.addDefault("Abilities.Water.WaterCombo.WaterGimbal.SourceRange", 10);
