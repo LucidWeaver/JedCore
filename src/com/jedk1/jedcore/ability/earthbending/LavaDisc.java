@@ -12,9 +12,9 @@ import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.CoreAbility;
-import com.projectkorra.projectkorra.ability.ElementalAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
 import com.projectkorra.projectkorra.attribute.Attribute;
+import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.earthbending.passive.DensityShift;
 import com.projectkorra.projectkorra.firebending.util.FireDamageTimer;
 import com.projectkorra.projectkorra.region.RegionProtection;
@@ -25,10 +25,10 @@ import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.Levelled;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -39,6 +39,9 @@ import java.util.List;
 import java.util.Set;
 
 public class LavaDisc extends LavaAbility implements AddonAbility {
+
+	private static final Particle DUST_PARTICLE = resolveParticle("DUST", "REDSTONE");
+	private static final Particle SMOKE_PARTICLE = resolveParticle("SMOKE", "SMOKE_NORMAL");
 
 	private Location location;
 	private int recallCount;
@@ -52,12 +55,13 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 	@Attribute(Attribute.DURATION)
 	private long duration;
 	private int recallLimit;
-	private boolean trailFlow;
+
+	private Block sourceBlock;
+	private boolean cooldownApplied;
 
 	private CompositeRemovalPolicy removalPolicy;
 	private DiscRenderer discRenderer;
 	private State state;
-	private final Set<Block> trailBlocks = new HashSet<>();
 
 	public LavaDisc(Player player) {
 		super(player);
@@ -66,11 +70,8 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 			return;
 		}
 
-		// Allow new LavaDisc if all existing instances for that player are in CleanupState.
-		for (LavaDisc disc : CoreAbility.getAbilities(player, LavaDisc.class)) {
-			if (!(disc.state instanceof CleanupState)) {
-				return;
-			}
+		if (hasAbility(player, LavaDisc.class)) {
+			return;
 		}
 
 		state = new HoldState();
@@ -81,7 +82,23 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 
 		if (prepare()) {
 			start();
+
+			if (!isStarted()) {
+				RegenTempBlock.revert(sourceBlock);
+				sourceBlock = null;
+			}
 		}
+	}
+
+	private static Particle resolveParticle(String... names) {
+		for (String name : names) {
+			try {
+				return Particle.valueOf(name);
+			} catch (IllegalArgumentException ignored) {
+			}
+		}
+
+		return null;
 	}
 
 	public void setFields() {
@@ -91,7 +108,6 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		cooldown = config.getLong("Abilities.Earth.LavaDisc.Cooldown");
 		duration = config.getLong("Abilities.Earth.LavaDisc.Duration");
 		recallLimit = config.getInt("Abilities.Earth.LavaDisc.RecallLimit") - 1;
-		trailFlow = config.getBoolean("Abilities.Earth.LavaDisc.Destroy.TrailFlow");
 
 		this.removalPolicy = new CompositeRemovalPolicy(this,
 				new CannotBendRemovalPolicy(this.bPlayer, this, true, true),
@@ -110,59 +126,47 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		boolean lavaOnly = config.getBoolean("Abilities.Earth.LavaDisc.Source.LavaOnly");
 		double sourceRange = config.getDouble("Abilities.Earth.LavaDisc.Source.Range");
 
-		Block lavaSource = getLavaSourceBlock(player, sourceRange);
-		if (lavaSource != null) {
-			new RegenTempBlock(lavaSource, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled)bd).setLevel(4)), sourceRegen);
-			return true;
-		} else {
-			Block earthSource = getEarthSourceBlock(sourceRange);
-			if (earthSource != null && !lavaOnly) {
-				new RegenTempBlock(earthSource, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled)bd).setLevel(4)), sourceRegen);
-			return true;
-			}
+		Block source = getLavaSourceBlock(sourceRange);
+
+		if (source == null && !lavaOnly) {
+			source = getEarthSourceBlock(sourceRange);
 		}
 
-		return false;
+		if (source == null) {
+			return false;
+		}
+
+		sourceBlock = source;
+		new RegenTempBlock(source, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled) bd).setLevel(4)), sourceRegen);
+		return true;
 	}
 
 	@Override
 	public void progress() {
 		if (this.removalPolicy.shouldRemove()) {
-			if (!player.isOnline()) {
-				// Revert all of the lava blocks if the player goes offline.
-				for (Block block : trailBlocks) {
-					RegenTempBlock.revert(block);
-				}
-				bPlayer.addCooldown(this);
-				remove();
-				return;
-			} else if (!(state instanceof CleanupState)) {
-				state = new CleanupState();
-			}
-		}
-
-		if (!hasAbility(player, LavaDisc.class)) {
+			remove();
 			return;
 		}
 
 		state.update();
 	}
 
-	public static boolean canFlowFrom(Block from) {
-		Material type = from.getType();
-		if (type != Material.LAVA && !ElementalAbility.isAir(type)) {
-			return true;
+	@Override
+	public void remove() {
+		if (isStarted() && !isRemoved()) {
+			applyCooldown();
 		}
 
-		for (LavaDisc disc : CoreAbility.getAbilities(LavaDisc.class)) {
-			if (disc.trailFlow) continue;
+		super.remove();
+	}
 
-			if (disc.trailBlocks.contains(from)) {
-				return false;
-			}
+	private void applyCooldown() {
+		if (cooldownApplied || bPlayer == null) {
+			return;
 		}
 
-		return true;
+		cooldownApplied = true;
+		bPlayer.addCooldown(this);
 	}
 
 	private boolean isLocationSafe() {
@@ -183,11 +187,35 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		return location.getY() >= location.getWorld().getMinHeight() && location.getY() <= (location.getWorld().getMaxHeight() - 1);
 	}
 
+	private boolean canDamage(Entity entity) {
+		if (!(entity instanceof LivingEntity) || entity instanceof ArmorStand) {
+			return false;
+		}
+
+		if (entity.getEntityId() == player.getEntityId()) {
+			return false;
+		}
+
+		if (entity.hasMetadata("BendingImmunity")) {
+			return false;
+		}
+
+		if (entity instanceof Player && Commands.invincible.contains(entity.getName())) {
+			return false;
+		}
+
+		return !RegionProtection.isRegionProtected(this, entity.getLocation());
+	}
+
 	private void doDamage(Entity entity) {
 		DamageHandler.damageEntity(entity, damage, this);
-		entity.setFireTicks(20);
+
+		if (entity.getFireTicks() < 20) {
+			entity.setFireTicks(20);
+		}
+
 		new FireDamageTimer(entity, player, this);
-		entity.getLocation().getWorld().spawnParticle(Particle.LAVA, entity.getLocation(), 15, Math.random(), Math.random(), Math.random(), 0.1);
+		entity.getWorld().spawnParticle(Particle.LAVA, entity.getLocation(), 15, Math.random(), Math.random(), Math.random(), 0.1);
     }
 
 	@Override
@@ -279,14 +307,6 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		this.recallLimit = recallLimit;
 	}
 
-	public boolean isTrailFlow() {
-		return trailFlow;
-	}
-
-	public void setTrailFlow(boolean trailFlow) {
-		this.trailFlow = trailFlow;
-	}
-
 	public DiscRenderer getDiscRenderer() {
 		return discRenderer;
 	}
@@ -301,10 +321,6 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 
 	public void setState(State state) {
 		this.state = state;
-	}
-
-	public Set<Block> getTrailBlocks() {
-		return trailBlocks;
 	}
 
 	@Override
@@ -343,11 +359,9 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 
 			discRenderer.render(location, false);
 
-			location.setPitch(0);
-
 			if (!player.isSneaking()) {
 				time = System.currentTimeMillis();
-				state = new ForwardTravelState(location.getDirection().normalize());
+				state = new ForwardTravelState();
 			}
 		}
 	}
@@ -359,11 +373,7 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		protected boolean hasHit;
 
 		public TravelState() {
-			this(player.getEyeLocation().getDirection());
-		}
-
-		public TravelState(Vector direction) {
-			this.direction = direction;
+			this.direction = player.getEyeLocation().getDirection();
 
 			ConfigurationSection config = JedCoreConfig.getConfig(player);
 
@@ -371,16 +381,21 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 		}
 
 		protected void move() {
+			Set<Entity> damaged = new HashSet<>();
+
 			for (int i = 0; i < 5; i++) {
 				location = location.add(direction.clone().multiply(0.15));
 
 				for (Entity entity : GeneralMethods.getEntitiesAroundPoint(location, 2.0D)) {
-					if (entity instanceof LivingEntity && entity.getEntityId() != player.getEntityId()) {
-						doDamage(entity);
-						if (!passHit) {
-							hasHit = true;
-							return;
-						}
+					if (!canDamage(entity) || !damaged.add(entity)) {
+						continue;
+					}
+
+					doDamage(entity);
+
+					if (!passHit) {
+						hasHit = true;
+						return;
 					}
 				}
 			}
@@ -389,46 +404,28 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 
 	// Moves the disc forward. Makes the disc destroy blocks if enabled.
 	// Transitions to ReverseTravelState if the player starts sneaking and can recall.
-	// Transitions to CleanupState if it times out or hits an entity.
+	// Ends the ability if it times out or hits an entity.
 	private class ForwardTravelState extends TravelState {
-		public ForwardTravelState() {
-			this(player.getEyeLocation().getDirection());
-		}
-
-		public ForwardTravelState(Vector direction) {
-			super(direction);
-		}
-
 		@Override
 		public void update() {
 			if (!isLocationSafe() || System.currentTimeMillis() > time + duration) {
-				state = new CleanupState();
+				remove();
 				return;
 			}
 
 			if (player.isSneaking() && recallCount <= recallLimit) {
+				time = System.currentTimeMillis();
 				state = new ReverseTravelState();
 				return;
 			}
 
-			alterPitch();
+			direction = player.getEyeLocation().getDirection().normalize();
 			move();
 			discRenderer.render(location, true);
 
 			if (hasHit) {
-				state = new CleanupState();
+				remove();
 			}
-		}
-
-		private void alterPitch() {
-			Location loc = player.getLocation().clone();
-
-			if (loc.getPitch() < -20)
-				loc.setPitch(-20);
-			if (loc.getPitch() > 20)
-				loc.setPitch(20);
-
-			direction = loc.getDirection().normalize();
 		}
 	}
 
@@ -438,7 +435,13 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 	private class ReverseTravelState extends TravelState {
 		@Override
 		public void update() {
+			if (!isLocationSafe() || System.currentTimeMillis() > time + duration) {
+				remove();
+				return;
+			}
+
 			if (!player.isSneaking()) {
+				time = System.currentTimeMillis();
 				state = new ForwardTravelState();
 				return;
 			}
@@ -453,34 +456,16 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 			move();
 			discRenderer.render(location, true);
 
+			if (hasHit) {
+				remove();
+				return;
+			}
+
 			double distanceAway = location.distance(loc);
 			if (distanceAway < 0.5) {
 				recallCount++;
 				// Player is holding the disc when it gets close enough to them.
 				state = new HoldState();
-			}
-		}
-	}
-
-	// Waits for the RegenTempBlocks to revert.
-	// This exists so the instance stays alive and block flow events can stop the lava from flowing.
-	private class CleanupState implements State {
-		private final long startTime;
-		private final long regenTime;
-
-		public CleanupState() {
-			this.startTime = System.currentTimeMillis();
-
-			ConfigurationSection config = JedCoreConfig.getConfig(player);
-
-			regenTime = config.getLong("Abilities.Earth.LavaDisc.Destroy.RegenTime");
-			bPlayer.addCooldown(LavaDisc.this);
-		}
-
-		@Override
-		public void update() {
-			if (System.currentTimeMillis() >= startTime + regenTime || trailBlocks.isEmpty()) {
-				remove();
 			}
 		}
 	}
@@ -516,15 +501,18 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 			else
 				location.getWorld().spawnParticle(Particle.LAVA, location, 1, Math.random(), Math.random(), Math.random(), 0.1);
 			angle += 1;
-			if (angle > 360) angle = 0;
-			for (Location l : JCMethods.getCirclePoints(location, 20, 1, angle)) {
-				location.getWorld().spawnParticle(Particle.REDSTONE, l, 0, 196 / 255.0, 93 / 255.0, 0, 0.005F, new Particle.DustOptions(Color.fromRGB(196, 93, 0), 1));
+			if (angle >= 360) angle -= 360;
+			double startAngle = Math.toRadians(angle);
+			for (Location l : JCMethods.getCirclePoints(location, 20, 1, startAngle)) {
+				if (DUST_PARTICLE != null)
+					location.getWorld().spawnParticle(DUST_PARTICLE, l, 0, 196 / 255.0, 93 / 255.0, 0, 0.005F, new Particle.DustOptions(Color.fromRGB(196, 93, 0), 1));
 				if (largeLava && damageBlocks)
 					damageBlocks(l);
 			}
-			for (Location l : JCMethods.getCirclePoints(location, 10, 0.5, angle)) {
+			for (Location l : JCMethods.getCirclePoints(location, 10, 0.5, startAngle)) {
 				location.getWorld().spawnParticle(Particle.FLAME, l, 1, 0, 0, 0, 0.01);
-				location.getWorld().spawnParticle(Particle.SMOKE_NORMAL, l, 1, 0, 0, 0, 0.05);
+				if (SMOKE_PARTICLE != null)
+					location.getWorld().spawnParticle(SMOKE_PARTICLE, l, 1, 0, 0, 0, 0.05);
 				if (largeLava && damageBlocks)
 					damageBlocks(l);
 			}
@@ -539,11 +527,10 @@ public class LavaDisc extends LavaAbility implements AddonAbility {
 					}
 					if (lavaTrail) {
 						new RegenTempBlock(block, Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled) bd).setLevel(4)), regenTime);
-						trailBlocks.add(block);
 					} else {
 						new RegenTempBlock(block, Material.AIR, Material.AIR.createBlockData(), regenTime);
 					}
-					location.getWorld().spawnParticle(Particle.LAVA, l, particles * 2, Math.random(), Math.random(), Math.random(), 0.2);
+					l.getWorld().spawnParticle(Particle.LAVA, l, particles * 2, Math.random(), Math.random(), Math.random(), 0.2);
 				}
 			}
 		}

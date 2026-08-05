@@ -483,7 +483,6 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.LavaDisc.Destroy.BlockDamage", true);
 		config.addDefault("Abilities.Earth.LavaDisc.Destroy.AdditionalMeltableBlocks", meltable);
 		config.addDefault("Abilities.Earth.LavaDisc.Destroy.LavaTrail", true);
-		config.addDefault("Abilities.Earth.LavaDisc.Destroy.TrailFlow", false);
 		config.addDefault("Abilities.Earth.LavaDisc.Source.RegenTime", 10000);
 		config.addDefault("Abilities.Earth.LavaDisc.Source.LavaOnly", false);
 		config.addDefault("Abilities.Earth.LavaDisc.Source.Range", 4.0);

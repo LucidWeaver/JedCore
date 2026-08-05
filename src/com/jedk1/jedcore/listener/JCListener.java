@@ -5,7 +5,6 @@ import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.ability.chiblocking.Backstab;
 import com.jedk1.jedcore.ability.chiblocking.DaggerThrow;
 import com.jedk1.jedcore.ability.earthbending.EarthSurf;
-import com.jedk1.jedcore.ability.earthbending.LavaDisc;
 import com.jedk1.jedcore.ability.earthbending.MetalArmor;
 import com.jedk1.jedcore.ability.earthbending.MetalFragments;
 import com.jedk1.jedcore.ability.earthbending.MetalShred;
@@ -41,7 +40,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
@@ -100,13 +98,6 @@ public class JCListener implements Listener {
 		MetalArmor metalArmor = CoreAbility.getAbility(earthArmor.getPlayer(), MetalArmor.class);
 		if (metalArmor != null && metalArmor.isTracking(earthArmor)) {
 			metalArmor.remove();
-		}
-	}
-
-	@EventHandler
-	public void onFlow(BlockFromToEvent event) {
-		if (!LavaDisc.canFlowFrom(event.getBlock())) {
-			event.setCancelled(true);
 		}
 	}
 
