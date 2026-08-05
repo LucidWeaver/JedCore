@@ -3,7 +3,6 @@ package com.jedk1.jedcore.ability.earthbending;
 import com.jedk1.jedcore.JedCore;
 import com.jedk1.jedcore.JCMethods;
 import com.jedk1.jedcore.configuration.JedCoreConfig;
-import com.jedk1.jedcore.util.RegenTempBlock;
 import com.projectkorra.projectkorra.GeneralMethods;
 import com.projectkorra.projectkorra.ability.AddonAbility;
 import com.projectkorra.projectkorra.ability.LavaAbility;
@@ -24,7 +23,6 @@ import org.bukkit.util.BlockIterator;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -67,14 +65,14 @@ public class Fissure extends LavaAbility implements AddonAbility {
 		step = System.currentTimeMillis() + slapDelay;
 		location = player.getLocation().clone();
 		location.setPitch(0);
-		direction = location.getDirection();
-		blockDirection = this.direction.clone().setX(Math.round(this.direction.getX()));
-		blockDirection = blockDirection.setZ(Math.round(direction.getZ()));
+		start();
+		if (isRemoved()) {
+			return;
+		}
 		if (prepareLine()) {
-			start();
-			if (!isRemoved()) {
-				bPlayer.addCooldown(this);
-			}
+			bPlayer.addCooldown(this);
+		} else {
+			remove();
 		}
 	}
 	
@@ -95,7 +93,6 @@ public class Fissure extends LavaAbility implements AddonAbility {
 			return;
 		}
 		if (System.currentTimeMillis() > step && slap <= centerSlap.size()) {
-			time = System.currentTimeMillis();
 			step = System.currentTimeMillis() + slapDelay;
 			slapCenter();
 			slap++;
@@ -109,51 +106,49 @@ public class Fissure extends LavaAbility implements AddonAbility {
 		direction = player.getEyeLocation().getDirection().setY(0).normalize();
 		blockDirection = this.direction.clone().setX(Math.round(this.direction.getX()));
 		blockDirection = blockDirection.setZ(Math.round(direction.getZ()));
-		Location origin = player.getLocation().add(0, -1, 0).add(blockDirection.multiply(2));
-		if (isEarthbendable(player, origin.getBlock())) {
-			BlockIterator bi = new BlockIterator(player.getWorld(), origin.toVector(), direction, 0, slapRange);
+		Location origin = player.getLocation().add(0, -1, 0).add(blockDirection.clone().multiply(2));
+		if (!isEarthbendable(origin.getBlock())) {
+			return false;
+		}
 
-			while (bi.hasNext()) {
-				Block b = bi.next();
+		BlockIterator bi = new BlockIterator(player.getWorld(), origin.toVector(), direction, 0, slapRange);
 
-				if (b.getY() > b.getWorld().getMinHeight()  && b.getY() < b.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, b.getLocation())) {
-					while (!isEarthbendable(player, b)) {
-						b = b.getRelative(BlockFace.DOWN);
-						if (b.getY() < b.getWorld().getMinHeight() || b.getY() > b.getWorld().getMaxHeight()) {
-							break;
-						}
-						if (isEarthbendable(player, b)) {
-							break;
-						}
-					}
+		while (bi.hasNext()) {
+			Block b = bi.next();
 
-					while (!isTransparent(b.getRelative(BlockFace.UP))) {
-						b = b.getRelative(BlockFace.UP);
-						if (b.getY() < b.getWorld().getMinHeight() || b.getY() > b.getWorld().getMaxHeight()) {
-							break;
-						}
-						if (isEarthbendable(player, b.getRelative(BlockFace.UP))) {
-							break;
-						}
-					}
+			if (b.getY() < b.getWorld().getMinHeight() || b.getY() >= b.getWorld().getMaxHeight()) {
+				continue;
+			}
 
-					if (isEarthbendable(player, b)) {
-						centerSlap.add(b.getLocation());
-					} else {
-						break;
-					}
+			if (RegionProtection.isRegionProtected(this, b.getLocation())) {
+				break;
+			}
+
+			while (!isEarthbendable(b) && b.getY() > b.getWorld().getMinHeight()) {
+				b = b.getRelative(BlockFace.DOWN);
+			}
+
+			while (!isTransparent(b.getRelative(BlockFace.UP)) && b.getY() + 1 < b.getWorld().getMaxHeight()) {
+				b = b.getRelative(BlockFace.UP);
+				if (!isEarthbendable(b)) {
+					break;
 				}
 			}
-			return true;
+
+			if (!isEarthbendable(b)) {
+				break;
+			}
+
+			centerSlap.add(b.getLocation());
 		}
-		return false;
+		return !centerSlap.isEmpty();
 	}
 
 	private void slapCenter() {
-		for (Location location : centerSlap) {
-			if (centerSlap.indexOf(location) == slap) {
-				addTempBlock(location.getBlock(), Material.LAVA);
-			}
+		if (slap < centerSlap.size()) {
+			Location center = centerSlap.get(slap);
+			location = center.clone();
+			addTempBlock(center.getBlock(), Material.LAVA);
 		}
 		if (slap >= centerSlap.size()) {
 			progressed = true;
@@ -185,34 +180,27 @@ public class Fissure extends LavaAbility implements AddonAbility {
 				expand(right);
 			}
 		}
-		Collections.reverse(blocks);
 	}
 
 	private void expand(Block block) {
-		if (block != null && block.getY() > block.getWorld().getMinHeight() && block.getY() < block.getWorld().getMaxHeight() && !RegionProtection.isRegionProtected(this, block.getLocation())) {
-			while (!isEarthbendable(player, block)) {
-				block = block.getRelative(BlockFace.DOWN);
-				if (block.getY() < block.getWorld().getMinHeight() || block.getY() > block.getWorld().getMaxHeight()) {
-					break;
-				}
-				if (isEarthbendable(player, block)) {
-					break;
-				}
-			}
+		if (block == null || block.getY() < block.getWorld().getMinHeight() || block.getY() >= block.getWorld().getMaxHeight()
+				|| RegionProtection.isRegionProtected(this, block.getLocation())) {
+			return;
+		}
 
-			while (!isTransparent(player, block.getRelative(BlockFace.UP))) {
-				block = block.getRelative(BlockFace.UP);
-				if (block.getY() < block.getWorld().getMinHeight() || block.getY() > block.getWorld().getMaxHeight()) {
-					break;
-				}
-				if (isEarthbendable(player, block.getRelative(BlockFace.UP))) {
-					break;
-				}
-			}
+		while (!isEarthbendable(block) && block.getY() > block.getWorld().getMinHeight()) {
+			block = block.getRelative(BlockFace.DOWN);
+		}
 
-			if (isEarthbendable(player, block)) {
-				addTempBlock(block, Material.LAVA);
+		while (!isTransparent(block.getRelative(BlockFace.UP)) && block.getY() + 1 < block.getWorld().getMaxHeight()) {
+			block = block.getRelative(BlockFace.UP);
+			if (!isEarthbendable(block)) {
+				break;
 			}
+		}
+
+		if (isEarthbendable(block)) {
+			addTempBlock(block, Material.LAVA);
 		}
 	}
 
@@ -250,7 +238,7 @@ public class Fissure extends LavaAbility implements AddonAbility {
 	}
 	
 	private void forceRevert() {
-		coolLava();
+		remove();
 	}
 	
 	private void coolLava() {

@@ -436,17 +436,17 @@ public class JedCoreConfig {
 				+ "normal. To use, simply be in the air just above "
 				+ "the ground, and Left Click! Additionally, if an entity just so happens to get caught in "
 				+ "the wave, they will be moved with the wave.");
-		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Cooldown", 3000);
-		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.MinimumCooldown", 2000);
-		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Scaled", true);
 		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Enabled", false);
-		config.addDefault("Abilities.Earth.EarthSurf.Duration.Duration", 7000);
+		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Scaled", true);
+		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Minimum", 2000);
+		config.addDefault("Abilities.Earth.EarthSurf.Cooldown.Maximum", 3000);
 		config.addDefault("Abilities.Earth.EarthSurf.Duration.Enabled", false);
-		config.addDefault("Abilities.Earth.EarthSurf.RelaxedCollisions", true);
-		config.addDefault("Abilities.Earth.EarthSurf.RemoveOnAnyDamage", false);
+		config.addDefault("Abilities.Earth.EarthSurf.Duration.Milliseconds", 7000);
+		config.addDefault("Abilities.Earth.EarthSurf.RemoveOnDamage", false);
 		config.addDefault("Abilities.Earth.EarthSurf.Speed", 0.55);
-		config.addDefault("Abilities.Earth.EarthSurf.HeightTolerance", 3);
-		config.addDefault("Abilities.Earth.EarthSurf.SpringStiffness", 0.35);
+		config.addDefault("Abilities.Earth.EarthSurf.RideHeight", 1.5);
+		config.addDefault("Abilities.Earth.EarthSurf.MaxGroundDistance", 3.5);
+		config.addDefault("Abilities.Earth.EarthSurf.TerrainGraceTicks", 3);
 		
 		config.addDefault("Abilities.Earth.Fissure.Enabled", true);
 		config.addDefault("Abilities.Earth.Fissure.Description", "Fissure is an advanced Lavabending "
@@ -454,7 +454,7 @@ public class JedCoreConfig {
 			+ "swallowing up any enemies. To use, simply swing at an enemy "
 			+ "and a line of lava will crack open. "
 			+ "Then, tap Sneak (Default: Shift) to expand the crevice. "
-			+ "The crevice has a maximum width and depth. Once the crevice has reached it's maximum "
+			+ "The crevice has a maximum width. Once the crevice has reached it's maximum "
 			+ "width, Sneak while looking at the crevice to close it!");
 		config.addDefault("Abilities.Earth.Fissure.Cooldown", 20000);
 		config.addDefault("Abilities.Earth.Fissure.Duration", 15000);
@@ -1122,6 +1122,7 @@ public class JedCoreConfig {
 		config.options().copyDefaults(true);
 		plugin.saveConfig();
 	}
+
 
 	private void addDeathMessages() {
 		FileConfiguration lang = ConfigManager.languageConfig.get();

@@ -138,6 +138,11 @@ public class JCListener implements Listener {
 	}
 
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+	public void onEarthSurfDamage(EntityDamageEvent event) {
+		EarthSurf.handleDamage(event);
+	}
+
+	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onMetalArmorDamage(EntityDamageEvent event) {
 		if (!(event.getEntity() instanceof Player player)) {
 			return;
