@@ -12,7 +12,6 @@ import com.projectkorra.projectkorra.command.Commands;
 import com.projectkorra.projectkorra.region.RegionProtection;
 import com.projectkorra.projectkorra.util.DamageHandler;
 
-import com.projectkorra.projectkorra.util.TempBlock;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -29,18 +28,28 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 
 public class LavaThrow extends LavaAbility implements AddonAbility {
+	private static final long BLOCK_REGEN_DELAY = 200;
+	private static final double MINIMUM_DIRECTION_LENGTH_SQUARED = 1.0E-8;
+	private static final double COLLISION_RADIUS = 2.0;
+	private static final double SOURCE_SEARCH_RADIUS = 3.0;
+	private static final String SNEAK_SELECT_PATH = "Abilities.Earth.LavaThrow.Source.SneakSelect";
+
 	@Attribute(Attribute.COOLDOWN)
 	private long cooldown;
 	@Attribute(Attribute.RANGE)
 	private int range;
 	@Attribute(Attribute.DAMAGE)
 	private double damage;
+	private boolean resetNoDamageTicks;
 	@Attribute(Attribute.SELECT_RANGE)
 	private int sourceRange;
-	private long sourceRegen;
+	private boolean sneakSelect;
 	@Attribute("MaxShots")
 	private int shotMax;
 	@Attribute(Attribute.FIRE_TICK)
@@ -52,23 +61,31 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 	private int shots;
 	private Block selectedSource;
 	private JCMethods.MovedEarthLease sourceLease;
-	private boolean isInitialState = true;
+	private boolean cooldownApplied;
 
-	private final ConcurrentHashMap<Location, Location> blasts = new ConcurrentHashMap<>();
+	private final List<Blast> blasts = new ArrayList<>();
 
 	public LavaThrow(Player player) {
 		super(player);
 
-		if (!bPlayer.canBend(this) || !bPlayer.canLavabend()) {
+		if (player == null || bPlayer == null || !bPlayer.canBend(this) || !bPlayer.canLavabend()) {
 			return;
 		}
 
 		setFields();
 
+		if (shotMax <= 0) {
+			return;
+		}
+
 		location = player.getLocation();
 		location.setPitch(0);
 
-		if (prepare()) {
+		if (sneakSelect) {
+			if (!prepare()) {
+				return;
+			}
+
 			try {
 				player.getWorld().playSound(selectedSource.getLocation(), Sound.ITEM_BUCKET_FILL_LAVA, 1.0f, 1.0f);
 				start();
@@ -77,7 +94,46 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 					releaseSourceLease();
 				}
 			}
+
+			return;
 		}
+
+		Block source = findSourceBlock();
+
+		if (source == null) {
+			return;
+		}
+
+		start();
+
+		if (isStarted()) {
+			fire(source);
+		}
+	}
+
+	public static void select(Player player) {
+		if (!isSneakSelectEnabled(player) || getAbility(player, LavaThrow.class) != null) {
+			return;
+		}
+
+		new LavaThrow(player);
+	}
+
+	public static void shoot(Player player) {
+		LavaThrow lavaThrow = getAbility(player, LavaThrow.class);
+
+		if (lavaThrow != null) {
+			lavaThrow.createBlast();
+			return;
+		}
+
+		if (!isSneakSelectEnabled(player)) {
+			new LavaThrow(player);
+		}
+	}
+
+	private static boolean isSneakSelectEnabled(Player player) {
+		return JedCoreConfig.getConfig(player).getBoolean(SNEAK_SELECT_PATH);
 	}
 
 	public void setFields() {
@@ -86,48 +142,79 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 		cooldown = config.getLong("Abilities.Earth.LavaThrow.Cooldown");
 		range = config.getInt("Abilities.Earth.LavaThrow.Range");
 		damage = config.getDouble("Abilities.Earth.LavaThrow.Damage");
-		sourceRange = config.getInt("Abilities.Earth.LavaThrow.SourceGrabRange");
-		sourceRegen = config.getLong("Abilities.Earth.LavaThrow.SourceRegenDelay");
+		resetNoDamageTicks = config.getBoolean("Abilities.Earth.LavaThrow.ResetNoDamageTicks");
+		sourceRange = config.getInt("Abilities.Earth.LavaThrow.Source.Range");
+		sneakSelect = config.getBoolean(SNEAK_SELECT_PATH);
 		shotMax = config.getInt("Abilities.Earth.LavaThrow.MaxShots");
 		fireTicks = config.getInt("Abilities.Earth.LavaThrow.FireTicks");
-		curveFactor = config.getDouble("Abilities.Earth.LavaThrow.CurveFactor");
+		curveFactor = Math.max(0.0, Math.min(1.0, config.getDouble("Abilities.Earth.LavaThrow.CurveFactor")));
 	}
 
 	@Override
 	public void progress() {
-		if (player == null || player.isDead() || !player.isOnline()) {
+		if (!getName().equalsIgnoreCase(bPlayer.getBoundAbilityName())) {
 			remove();
+			if (shots > 0) applyCooldown();
 			return;
 		}
 
-		if (!bPlayer.getBoundAbilityName().equalsIgnoreCase("LAVATHROW")) {
+		if (!player.getWorld().equals(location.getWorld())) {
 			remove();
-			if (shots > 0) bPlayer.addCooldown(this);
+			if (shots > 0) applyCooldown();
 			return;
 		}
 
-		if (player.getLocation().distance(selectedSource.getLocation()) >= sourceRange) {
+		if (sneakSelect && !isSourceUsable()) {
 			remove();
-			if (shots > 0) bPlayer.addCooldown(this);
+			if (shots > 0) applyCooldown();
 			return;
 		}
 
-		if (blasts.isEmpty() && shots >= shotMax && !isInitialState) {
+		if (blasts.isEmpty() && (!sneakSelect || shots >= shotMax)) {
 			remove();
-			bPlayer.addCooldown(this);
+			if (shots > 0) applyCooldown();
 			return;
 		}
 
-		selectedSource.getWorld().spawnParticle(Particle.FLAME, selectedSource.getLocation(), 2, 0.3, 1.0, 0.3, 0.05);
-		selectedSource.getWorld().spawnParticle(Particle.LAVA, selectedSource.getLocation(), 2, 0.2, 0.2, 0.2, 0);
+		if (sneakSelect) {
+			selectedSource.getWorld().spawnParticle(Particle.FLAME, selectedSource.getLocation(), 2, 0.3, 1.0, 0.3, 0.05);
+			selectedSource.getWorld().spawnParticle(Particle.LAVA, selectedSource.getLocation(), 2, 0.2, 0.2, 0.2, 0);
+		}
 
 		handleBlasts();
+	}
+
+	private boolean isSourceUsable() {
+		if (!LavaAbility.isLava(selectedSource)) {
+			return false;
+		}
+
+		return player.getLocation().distance(selectedSource.getLocation()) < sourceRange;
+	}
+
+	private Block findSourceBlock() {
+		Location searchCenter = player.getLocation();
+		searchCenter.setPitch(0);
+		searchCenter.add(searchCenter.getDirection().multiply(sourceRange));
+
+		List<Block> candidates = GeneralMethods.getBlocksAroundPoint(searchCenter, SOURCE_SEARCH_RADIUS);
+		Collections.shuffle(candidates);
+
+		for (Block candidate : candidates) {
+			if (LavaAbility.isLava(candidate)
+					&& !RegionProtection.isRegionProtected(this, candidate.getLocation())) {
+				return candidate;
+			}
+		}
+
+		return null;
 	}
 
 	private boolean prepare() {
 		Block targetBlock = getTargetLavaBlock(sourceRange);
 
-		if (targetBlock != null && !TempBlock.isTempBlock(targetBlock)) {
+		if (targetBlock != null
+				&& !RegionProtection.isRegionProtected(this, targetBlock.getLocation())) {
 			sourceLease = JCMethods.protectMovedEarth(targetBlock);
 			selectedSource = targetBlock;
 			return true;
@@ -156,77 +243,104 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 	}
 
 	public void createBlast() {
-		if (selectedSource != null && shots < shotMax) {
-			isInitialState = false;
-			shots++;
+		fire(sneakSelect ? selectedSource : findSourceBlock());
+	}
 
-			if (shots >= shotMax) {
-				bPlayer.addCooldown(this);
-			}
+	private void fire(Block source) {
+		if (source == null || shots >= shotMax || !player.getWorld().equals(source.getWorld())) {
+			return;
+		}
 
-			Location origin = selectedSource.getLocation().clone().add(0, 2, 0);
-			player.getWorld().playSound(origin, Sound.ITEM_BUCKET_EMPTY_LAVA, 1.0f, 1.0f);
-			double viewRange = range + origin.distance(player.getEyeLocation());
-			Location viewTarget = GeneralMethods.getTargetedLocation(player, viewRange, Material.WATER, Material.LAVA);
-			Vector direction = viewTarget.clone().subtract(origin).toVector().normalize();
-			Location head = origin.clone();
+		shots++;
 
-			head.setDirection(direction);
-			blasts.put(head, origin);
+		if (shots >= shotMax) {
+			applyCooldown();
+		}
 
-			new RegenTempBlock(selectedSource.getRelative(BlockFace.UP), Material.LAVA,
-					Material.LAVA.createBlockData(), 200);
+		Location origin = source.getLocation().clone().add(0, 2, 0);
+		player.getWorld().playSound(origin, Sound.ITEM_BUCKET_EMPTY_LAVA, 1.0f, 1.0f);
+		double viewRange = range + origin.distance(player.getEyeLocation());
+		Location viewTarget = GeneralMethods.getTargetedLocation(player, viewRange, Material.WATER, Material.LAVA);
+		Vector direction = viewTarget.clone().subtract(origin).toVector().normalize();
+		Location head = origin.clone();
+
+		head.setDirection(direction);
+		blasts.add(new Blast(origin, head));
+
+		Block above = source.getRelative(BlockFace.UP);
+
+		if (!LavaAbility.isLava(above) && !RegionProtection.isRegionProtected(this, above.getLocation())) {
+			new RegenTempBlock(above, Material.LAVA, Material.LAVA.createBlockData(), BLOCK_REGEN_DELAY);
 		}
 	}
 
 	public void handleBlasts() {
-		for (Location l : blasts.keySet()) {
-			Location head = l.clone();
-			Location origin = blasts.get(l);
+		Iterator<Blast> iterator = blasts.iterator();
 
-			if (l.distance(origin) > range) {
-				blasts.remove(l);
+		while (iterator.hasNext()) {
+			Blast blast = iterator.next();
+			Location current = blast.head;
+
+			if (current.distance(blast.origin) > range) {
+				iterator.remove();
 				continue;
 			}
 
-			if (GeneralMethods.isSolid(l.getBlock())) {
-				blasts.remove(l);
+			if (GeneralMethods.isSolid(current.getBlock())) {
+				iterator.remove();
 				continue;
 			}
 
-			Vector currentDirection = head.getDirection();
+			Vector currentDirection = current.getDirection();
 			Vector playerLookDirection = player.getEyeLocation().getDirection();
 
 			Vector curveVector = playerLookDirection.clone()
 					.subtract(currentDirection)
 					.multiply(curveFactor);
 
-			Vector newDirection = currentDirection.clone()
-					.add(curveVector)
-					.normalize();
+			Vector newDirection = currentDirection.clone().add(curveVector);
 
-			head.setDirection(newDirection);
-			head = head.add(newDirection.multiply(1));
+			if (newDirection.lengthSquared() < MINIMUM_DIRECTION_LENGTH_SQUARED) {
+				newDirection = currentDirection;
+			} else {
+				newDirection.normalize();
+			}
 
-			new RegenTempBlock(l.getBlock(), Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled)bd).setLevel(0)), 200);
-			head.getWorld().spawnParticle(Particle.LAVA, head, 1, Math.random(), Math.random(), Math.random(), 0);
+			Location next = current.clone();
+			next.setDirection(newDirection);
+			next.add(newDirection);
+
+			if (!RegionProtection.isRegionProtected(this, current)) {
+				new RegenTempBlock(current.getBlock(), Material.LAVA, Material.LAVA.createBlockData(bd -> ((Levelled) bd).setLevel(0)), BLOCK_REGEN_DELAY);
+			}
+
+			next.getWorld().spawnParticle(Particle.LAVA, next, 1, Math.random(), Math.random(), Math.random(), 0);
 
 			boolean hit = false;
 
-			for (Entity entity : GeneralMethods.getEntitiesAroundPoint(l, 2.0D)) {
+			for (Entity entity : GeneralMethods.getEntitiesAroundPoint(current, COLLISION_RADIUS)) {
 				if (entity instanceof LivingEntity && entity.getEntityId() != player.getEntityId() && !RegionProtection.isRegionProtected(this, entity.getLocation()) && !((entity instanceof Player) && Commands.invincible.contains(((Player) entity).getName()))) {
-					DamageHandler.damageEntity(entity, damage, this);
-					blasts.remove(l);
+					LivingEntity target = (LivingEntity) entity;
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
+					DamageHandler.damageEntity(target, damage, this);
+					if (resetNoDamageTicks) {
+						target.setNoDamageTicks(0);
+					}
+					target.setFireTicks(this.fireTicks);
 
 					hit = true;
-					entity.setFireTicks(this.fireTicks);
+					break;
 				}
 			}
 
-			if (!hit) {
-				blasts.remove(l);
-				blasts.put(head, origin);
+			if (hit) {
+				iterator.remove();
+				continue;
 			}
+
+			blast.head = next;
 		}
 	}
 
@@ -241,6 +355,15 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 			sourceLease.close();
 			sourceLease = null;
 		}
+	}
+
+	private void applyCooldown() {
+		if (cooldownApplied || bPlayer == null) {
+			return;
+		}
+
+		cooldownApplied = true;
+		bPlayer.addCooldown(this);
 	}
 
 	@Override
@@ -312,12 +435,12 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 		this.sourceRange = sourceRange;
 	}
 
-	public long getSourceRegen() {
-		return sourceRegen;
+	public boolean isSneakSelect() {
+		return sneakSelect;
 	}
 
-	public void setSourceRegen(long sourceRegen) {
-		this.sourceRegen = sourceRegen;
+	public void setSneakSelect(boolean sneakSelect) {
+		this.sneakSelect = sneakSelect;
 	}
 
 	public int getShotMax() {
@@ -348,8 +471,14 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 		this.shots = shots;
 	}
 
-	public ConcurrentHashMap<Location, Location> getBlasts() {
-		return blasts;
+	public List<Location> getBlasts() {
+		List<Location> heads = new ArrayList<>(blasts.size());
+
+		for (Blast blast : blasts) {
+			heads.add(blast.head.clone());
+		}
+
+		return heads;
 	}
 
 	@Override
@@ -362,5 +491,15 @@ public class LavaThrow extends LavaAbility implements AddonAbility {
 	public boolean isEnabled() {
 		ConfigurationSection config = JedCoreConfig.getConfig(this.player);
 		return config.getBoolean("Abilities.Earth.LavaThrow.Enabled");
+	}
+
+	private static class Blast {
+		private final Location origin;
+		private Location head;
+
+		private Blast(Location origin, Location head) {
+			this.origin = origin;
+			this.head = head;
+		}
 	}
 }

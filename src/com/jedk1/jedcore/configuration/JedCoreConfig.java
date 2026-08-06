@@ -505,15 +505,17 @@ public class JedCoreConfig {
 		
 		config.addDefault("Abilities.Earth.LavaThrow.Enabled", true);
 		config.addDefault("Abilities.Earth.LavaThrow.Description", "Throwing lava is a fundamental technique for the rare subskill. "
-				+ "Use Sneak(Deafult: Shift) while looking at a pool of lava infront of you, then "
-				+ "Left-Click to splash the lava at your target. "
-				+ "It can be used in rapid succession to create multiple streams of lava!");
+				+ "Left-Click while facing a pool of lava in front of you to splash it at your target. "
+				+ "It can be used in rapid succession to create multiple streams of lava! "
+				+ "If Source.SneakSelect is enabled, first pick a single source with Sneak(Default: Shift), "
+				+ "then Left-Click to throw from it.");
 		config.addDefault("Abilities.Earth.LavaThrow.Cooldown", 7000);
 		config.addDefault("Abilities.Earth.LavaThrow.MaxShots", 6);
 		config.addDefault("Abilities.Earth.LavaThrow.Range", 20);
 		config.addDefault("Abilities.Earth.LavaThrow.Damage", 1.0);
-		config.addDefault("Abilities.Earth.LavaThrow.SourceGrabRange", 4);
-		config.addDefault("Abilities.Earth.LavaThrow.SourceRegenDelay", 10000);
+		config.addDefault("Abilities.Earth.LavaThrow.ResetNoDamageTicks", true);
+		config.addDefault("Abilities.Earth.LavaThrow.Source.Range", 4);
+		config.addDefault("Abilities.Earth.LavaThrow.Source.SneakSelect", false);
 		config.addDefault("Abilities.Earth.LavaThrow.FireTicks", 80);
 		config.addDefault("Abilities.Earth.LavaThrow.CurveFactor", 0.5);
 
