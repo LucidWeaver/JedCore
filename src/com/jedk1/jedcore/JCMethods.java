@@ -270,6 +270,29 @@ public class JCMethods {
 		combos.addAll(ComboManager.getComboAbilities().keySet());
 	}
 
+	public static BlockFace getLeftBlockFace(BlockFace forward) {
+		switch (forward) {
+			case NORTH:
+				return BlockFace.WEST;
+			case SOUTH:
+				return BlockFace.EAST;
+			case EAST:
+				return BlockFace.NORTH;
+			case WEST:
+				return BlockFace.SOUTH;
+			case NORTH_WEST:
+				return BlockFace.SOUTH_WEST;
+			case NORTH_EAST:
+				return BlockFace.NORTH_WEST;
+			case SOUTH_WEST:
+				return BlockFace.SOUTH_EAST;
+			case SOUTH_EAST:
+				return BlockFace.NORTH_EAST;
+			default:
+				return BlockFace.NORTH;
+		}
+	}
+
 	/**
 	 * Gets the points of a line between two points.
 	 * @param startLoc
