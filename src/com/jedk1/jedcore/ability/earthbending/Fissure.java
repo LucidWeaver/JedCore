@@ -49,7 +49,17 @@ public class Fissure extends LavaAbility implements AddonAbility {
 	
 	static Random rand = new Random();
 
-	private final List<Location> centerSlap = new ArrayList<>();
+	private final List<Step> centerSlap = new ArrayList<>();
+
+	private static class Step {
+		private final Block block;
+		private final BlockFace face;
+
+		private Step(Block block, BlockFace face) {
+			this.block = block;
+			this.face = face;
+		}
+	}
 	private final List<Block> blocks = new ArrayList<>();
 	private final List<TempBlock> tempblocks = new ArrayList<>();
 
@@ -111,44 +121,102 @@ public class Fissure extends LavaAbility implements AddonAbility {
 			return false;
 		}
 
+		BlockFace cardinal = GeneralMethods.getCardinalDirection(blockDirection);
 		BlockIterator bi = new BlockIterator(player.getWorld(), origin.toVector(), direction, 0, slapRange);
+		Block previousColumn = origin.getBlock();
+		int previousY = origin.getBlockY();
+		int budget = slapRange;
 
-		while (bi.hasNext()) {
+		while (bi.hasNext() && budget > 0) {
 			Block b = bi.next();
+			Block start = b.getWorld().getBlockAt(b.getX(), previousY, b.getZ());
 
-			if (b.getY() < b.getWorld().getMinHeight() || b.getY() >= b.getWorld().getMaxHeight()) {
+			if (start.getY() < start.getWorld().getMinHeight() || start.getY() >= start.getWorld().getMaxHeight()) {
 				continue;
 			}
 
-			if (RegionProtection.isRegionProtected(this, b.getLocation())) {
+			if (RegionProtection.isRegionProtected(this, start.getLocation())) {
 				break;
 			}
 
-			while (!isEarthbendable(b) && b.getY() > b.getWorld().getMinHeight()) {
-				b = b.getRelative(BlockFace.DOWN);
+			Block surface = resolveSurface(start);
+			if (surface == null) {
+				break;
 			}
 
-			while (!isTransparent(b.getRelative(BlockFace.UP)) && b.getY() + 1 < b.getWorld().getMaxHeight()) {
-				b = b.getRelative(BlockFace.UP);
-				if (!isEarthbendable(b)) {
-					break;
+			int dx = start.getX() - previousColumn.getX();
+			int dz = start.getZ() - previousColumn.getZ();
+			BlockFace forward = (dx == 0 && dz == 0) ? cardinal : GeneralMethods.getCardinalDirection(new Vector(dx, 0, dz));
+			BlockFace backward = forward.getOppositeFace();
+			int surfaceY = surface.getY();
+
+			if (surfaceY > previousY) {
+				for (int y = previousY + 1; y <= surfaceY && budget > 0; y++) {
+					Block climbed = start.getWorld().getBlockAt(start.getX(), y, start.getZ());
+					if (!isTransparent(climbed.getRelative(backward)) || !addStep(climbed, y == surfaceY ? BlockFace.UP : backward)) {
+						return !centerSlap.isEmpty();
+					}
+					budget--;
 				}
+			} else if (surfaceY < previousY) {
+				for (int y = previousY - 1; y > surfaceY && budget > 0; y--) {
+					Block dropped = start.getWorld().getBlockAt(previousColumn.getX(), y, previousColumn.getZ());
+					if (!isTransparent(dropped.getRelative(forward)) || !addStep(dropped, forward)) {
+						return !centerSlap.isEmpty();
+					}
+					budget--;
+				}
+				if (budget > 0) {
+					if (!addStep(surface, BlockFace.UP)) {
+						return !centerSlap.isEmpty();
+					}
+					budget--;
+				}
+			} else {
+				if (!addStep(surface, BlockFace.UP)) {
+					return !centerSlap.isEmpty();
+				}
+				budget--;
 			}
 
-			if (!isEarthbendable(b)) {
-				break;
-			}
-
-			centerSlap.add(b.getLocation());
+			previousColumn = start;
+			previousY = surfaceY;
 		}
 		return !centerSlap.isEmpty();
 	}
 
+	private boolean addStep(Block block, BlockFace face) {
+		if (!isEarthbendable(block) || RegionProtection.isRegionProtected(this, block.getLocation())) {
+			return false;
+		}
+
+		centerSlap.add(new Step(block, face));
+		return true;
+	}
+
+	private Block resolveSurface(Block block) {
+		while (!isEarthbendable(block)) {
+			if (block.getY() <= block.getWorld().getMinHeight()) {
+				return null;
+			}
+			block = block.getRelative(BlockFace.DOWN);
+		}
+
+		while (!isTransparent(block.getRelative(BlockFace.UP))) {
+			if (block.getY() + 1 >= block.getWorld().getMaxHeight()) {
+				return null;
+			}
+			block = block.getRelative(BlockFace.UP);
+		}
+
+		return isEarthbendable(block) ? block : null;
+	}
+
 	private void slapCenter() {
 		if (slap < centerSlap.size()) {
-			Location center = centerSlap.get(slap);
-			location = center.clone();
-			addTempBlock(center.getBlock(), Material.LAVA);
+			Step center = centerSlap.get(slap);
+			location = center.block.getLocation();
+			addTempBlock(center.block, Material.LAVA);
 		}
 		if (slap >= centerSlap.size()) {
 			progressed = true;
@@ -172,35 +240,33 @@ public class Fissure extends LavaAbility implements AddonAbility {
 	private void expandFissure() {
 		if (progressed && width <= maxWidth) {
 			width++;
-			for (Location location : centerSlap) {
-				Block left = location.getBlock().getRelative(getLeftBlockFace(GeneralMethods.getCardinalDirection(blockDirection)), width);
-				expand(left);
-
-				Block right = location.getBlock().getRelative(getLeftBlockFace(GeneralMethods.getCardinalDirection(blockDirection)).getOppositeFace(), width);
-				expand(right);
+			BlockFace leftFace = JCMethods.getLeftBlockFace(GeneralMethods.getCardinalDirection(blockDirection));
+			BlockFace rightFace = leftFace.getOppositeFace();
+			for (Step center : centerSlap) {
+				expand(center.block.getRelative(leftFace, width), center.face);
+				expand(center.block.getRelative(rightFace, width), center.face);
 			}
 		}
 	}
 
-	private void expand(Block block) {
+	private void expand(Block block, BlockFace face) {
 		if (block == null || block.getY() < block.getWorld().getMinHeight() || block.getY() >= block.getWorld().getMaxHeight()
 				|| RegionProtection.isRegionProtected(this, block.getLocation())) {
 			return;
 		}
 
-		while (!isEarthbendable(block) && block.getY() > block.getWorld().getMinHeight()) {
-			block = block.getRelative(BlockFace.DOWN);
-		}
-
-		while (!isTransparent(block.getRelative(BlockFace.UP)) && block.getY() + 1 < block.getWorld().getMaxHeight()) {
-			block = block.getRelative(BlockFace.UP);
-			if (!isEarthbendable(block)) {
-				break;
+		Block side = block;
+		if (face == BlockFace.UP) {
+			if (!isEarthbendable(side)) {
+				side = side.getRelative(BlockFace.DOWN);
+			} else if (!isTransparent(side.getRelative(BlockFace.UP))) {
+				side = side.getRelative(BlockFace.UP);
 			}
 		}
 
-		if (isEarthbendable(block)) {
-			addTempBlock(block, Material.LAVA);
+		Block surface = (isEarthbendable(side) && isTransparent(side.getRelative(face))) ? side : null;
+		if (surface != null) {
+			addTempBlock(surface, Material.LAVA);
 		}
 	}
 
@@ -214,29 +280,6 @@ public class Fissure extends LavaAbility implements AddonAbility {
 		blocks.add(block);
 	}
 
-	public BlockFace getLeftBlockFace(BlockFace forward) {
-		switch (forward) {
-		case NORTH:
-			return BlockFace.WEST;
-		case SOUTH:
-			return BlockFace.EAST;
-		case WEST:
-			return BlockFace.SOUTH;
-		case EAST:
-			return BlockFace.NORTH;
-		case NORTH_WEST:
-			return BlockFace.SOUTH_WEST;
-		case NORTH_EAST:
-			return BlockFace.NORTH_WEST;
-		case SOUTH_WEST:
-			return BlockFace.SOUTH_EAST;
-		case SOUTH_EAST:
-			return BlockFace.NORTH_EAST;
-		default:
-			return BlockFace.NORTH;
-		}
-	}
-	
 	private void forceRevert() {
 		remove();
 	}
@@ -394,7 +437,11 @@ public class Fissure extends LavaAbility implements AddonAbility {
 	}
 
 	public List<Location> getCenterSlap() {
-		return centerSlap;
+		List<Location> locations = new ArrayList<>(centerSlap.size());
+		for (Step center : centerSlap) {
+			locations.add(center.block.getLocation());
+		}
+		return locations;
 	}
 
 	public List<Block> getBlocks() {
