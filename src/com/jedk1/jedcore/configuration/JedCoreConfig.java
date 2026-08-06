@@ -499,6 +499,7 @@ public class JedCoreConfig {
 		config.addDefault("Abilities.Earth.LavaFlux.Damage", 1.0);
 		config.addDefault("Abilities.Earth.LavaFlux.Speed", 1);
 		config.addDefault("Abilities.Earth.LavaFlux.Wave", true);
+		config.addDefault("Abilities.Earth.LavaFlux.FireTicks", 80);
 		config.addDefault("Abilities.Earth.LavaFlux.KnockUp", 1.0);
 		config.addDefault("Abilities.Earth.LavaFlux.KnockBack", 1.0);
 		
